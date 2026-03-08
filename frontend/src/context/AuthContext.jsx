@@ -8,9 +8,26 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   const checkAuth = async () => {
+    // First check sessionStorage (set after Steam callback)
+    const cached = sessionStorage.getItem('fraglog_user')
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        setUser(parsed)
+        setLoading(false)
+        return
+      } catch {}
+    }
+
+    // Fallback: check session cookie (works on localhost)
     try {
       const res = await api.get('/auth/me')
-      setUser(res.data.authenticated ? res.data.user : null)
+      if (res.data.authenticated) {
+        setUser(res.data.user)
+        sessionStorage.setItem('fraglog_user', JSON.stringify(res.data.user))
+      } else {
+        setUser(null)
+      }
     } catch {
       setUser(null)
     } finally {
@@ -25,17 +42,16 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.get('/auth/logout')
-      setUser(null)
-    } catch (err) {
-      console.error('Logout error:', err)
-    }
+    } catch {}
+    setUser(null)
+    sessionStorage.removeItem('fraglog_user')
   }
 
   const loginWithSteam = () => {
-    const steamLoginUrl = import.meta.env.VITE_API_URL
+    const url = import.meta.env.VITE_API_URL
       ? `${import.meta.env.VITE_API_URL}/api/auth/steam`
       : 'http://localhost:5000/api/auth/steam'
-    window.location.href = steamLoginUrl
+    window.location.href = url
   }
 
   return (

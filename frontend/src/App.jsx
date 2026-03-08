@@ -5,6 +5,7 @@ import Profile from './pages/Profile'
 import Library from './pages/Library'
 import GamePage from './pages/GamePage'
 import Discover from './pages/Discover'
+import AuthCallback from './pages/AuthCallback'
 import NotFound from './pages/NotFound'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
       <main>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/profile/:steamId" element={<Profile />} />
           <Route path="/library/:steamId" element={<Library />} />
           <Route path="/game/:appId" element={<GamePage />} />
