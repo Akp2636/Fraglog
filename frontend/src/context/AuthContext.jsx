@@ -3,28 +3,40 @@ import api from '../utils/api'
 
 const AuthContext = createContext(null)
 
+const STORAGE_KEY = 'fraglog_user'
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
+  const [user, setUserState] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Wrapper — always sync to localStorage
+  const setUser = (u) => {
+    if (u) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(u))
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+    setUserState(u)
+  }
+
   const checkAuth = async () => {
-    // First check sessionStorage (set after Steam callback)
-    const cached = sessionStorage.getItem('fraglog_user')
+    // 1. Check localStorage first (instant — no network)
+    const cached = localStorage.getItem(STORAGE_KEY)
     if (cached) {
       try {
-        const parsed = JSON.parse(cached)
-        setUser(parsed)
+        setUserState(JSON.parse(cached))
         setLoading(false)
         return
-      } catch {}
+      } catch {
+        localStorage.removeItem(STORAGE_KEY)
+      }
     }
 
-    // Fallback: check session cookie (works on localhost)
+    // 2. Fallback — ask backend (works on localhost with cookies)
     try {
       const res = await api.get('/auth/me')
       if (res.data.authenticated) {
         setUser(res.data.user)
-        sessionStorage.setItem('fraglog_user', JSON.stringify(res.data.user))
       } else {
         setUser(null)
       }
@@ -44,7 +56,6 @@ export const AuthProvider = ({ children }) => {
       await api.get('/auth/logout')
     } catch {}
     setUser(null)
-    sessionStorage.removeItem('fraglog_user')
   }
 
   const loginWithSteam = () => {

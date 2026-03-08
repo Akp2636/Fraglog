@@ -12,7 +12,6 @@ export default function AuthCallback() {
     const error = searchParams.get('error')
 
     if (error) {
-      console.error('Auth error:', error)
       navigate('/?error=' + error)
       return
     }
@@ -20,12 +19,11 @@ export default function AuthCallback() {
     if (data) {
       try {
         const user = JSON.parse(atob(data))
+        // setUser saves to localStorage automatically
         setUser(user)
-        // Save to sessionStorage so page refreshes keep you logged in
-        sessionStorage.setItem('fraglog_user', JSON.stringify(user))
-        navigate('/profile/' + user.steamId)
+        navigate('/profile/' + user.steamId, { replace: true })
       } catch (e) {
-        console.error('Failed to parse user data:', e)
+        console.error('Failed to parse auth data:', e)
         navigate('/')
       }
     } else {
@@ -35,19 +33,26 @@ export default function AuthCallback() {
 
   return (
     <div style={{
-      minHeight: '60vh', display: 'flex',
+      minHeight: '80vh', display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      background: '#14181c', flexDirection: 'column', gap: 16,
+      background: '#14181c', gap: 16,
     }}>
       <div style={{
-        width: 40, height: 40, borderRadius: '50%',
-        border: '3px solid #2c3440', borderTopColor: '#00b020',
+        width: 44, height: 44, borderRadius: '50%',
+        border: '3px solid #2c3440',
+        borderTopColor: '#00b020',
         animation: 'spin 0.8s linear infinite',
       }} />
-      <p style={{ color: '#9ab', fontFamily: 'Karla, sans-serif', fontSize: 14 }}>
+      <p style={{
+        color: '#9ab', fontFamily: 'Karla, sans-serif',
+        fontSize: 15,
+      }}>
         Signing you in...
       </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   )
 }
