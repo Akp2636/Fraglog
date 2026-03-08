@@ -2,14 +2,12 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../utils/api'
 
 const AuthContext = createContext(null)
-
 const STORAGE_KEY = 'fraglog_user'
 
 export const AuthProvider = ({ children }) => {
   const [user, setUserState] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Wrapper — always sync to localStorage
   const setUser = (u) => {
     if (u) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(u))
@@ -19,12 +17,16 @@ export const AuthProvider = ({ children }) => {
     setUserState(u)
   }
 
-  const checkAuth = async () => {
-    // 1. Check localStorage first (instant — no network)
+  useEffect(() => {
+    // Read localStorage immediately on every mount/page load
     const cached = localStorage.getItem(STORAGE_KEY)
+    console.log('🔍 AuthContext init — localStorage:', cached ? 'found user' : 'empty')
+
     if (cached) {
       try {
-        setUserState(JSON.parse(cached))
+        const parsed = JSON.parse(cached)
+        console.log('✅ Loaded user from localStorage:', parsed.username)
+        setUserState(parsed)
         setLoading(false)
         return
       } catch {
@@ -32,30 +34,24 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // 2. Fallback — ask backend (works on localhost with cookies)
-    try {
-      const res = await api.get('/auth/me')
-      if (res.data.authenticated) {
-        setUser(res.data.user)
-      } else {
-        setUser(null)
-      }
-    } catch {
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    checkAuth()
+    // No localStorage — try session cookie (localhost fallback)
+    api.get('/auth/me')
+      .then((res) => {
+        if (res.data.authenticated) {
+          console.log('✅ Loaded user from session:', res.data.user.username)
+          setUser(res.data.user)
+        } else {
+          setUserState(null)
+        }
+      })
+      .catch(() => setUserState(null))
+      .finally(() => setLoading(false))
   }, [])
 
   const logout = async () => {
-    try {
-      await api.get('/auth/logout')
-    } catch {}
+    try { await api.get('/auth/logout') } catch {}
     setUser(null)
+    console.log('👋 Logged out, localStorage cleared')
   }
 
   const loginWithSteam = () => {
@@ -66,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, loginWithSteam, checkAuth, setUser }}>
+    <AuthContext.Provider value={{ user, loading, logout, loginWithSteam, setUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+
+const STORAGE_KEY = 'fraglog_user'
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
-  const { setUser } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -12,21 +12,33 @@ export default function AuthCallback() {
     const error = searchParams.get('error')
 
     if (error) {
-      navigate('/?error=' + error)
+      console.error('Auth error from Steam:', error)
+      navigate('/')
       return
     }
 
-    if (data) {
-      try {
-        const user = JSON.parse(atob(data))
-        // setUser saves to localStorage automatically
-        setUser(user)
-        navigate('/profile/' + user.steamId, { replace: true })
-      } catch (e) {
-        console.error('Failed to parse auth data:', e)
-        navigate('/')
-      }
-    } else {
+    if (!data) {
+      console.error('No data param in callback URL')
+      navigate('/')
+      return
+    }
+
+    try {
+      const decoded = atob(data)
+      console.log('✅ Decoded user data:', decoded)
+      const user = JSON.parse(decoded)
+
+      // Save directly to localStorage — synchronous, guaranteed before navigate
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+      console.log('✅ Saved to localStorage:', localStorage.getItem(STORAGE_KEY))
+
+      // Small delay so localStorage write is definitely complete
+      setTimeout(() => {
+        window.location.href = '/profile/' + user.steamId
+      }, 500)
+
+    } catch (e) {
+      console.error('❌ Failed to parse auth data:', e)
       navigate('/')
     }
   }, [])
@@ -44,15 +56,10 @@ export default function AuthCallback() {
         borderTopColor: '#00b020',
         animation: 'spin 0.8s linear infinite',
       }} />
-      <p style={{
-        color: '#9ab', fontFamily: 'Karla, sans-serif',
-        fontSize: 15,
-      }}>
+      <p style={{ color: '#9ab', fontFamily: 'Karla, sans-serif', fontSize: 15 }}>
         Signing you in...
       </p>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
