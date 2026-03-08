@@ -15,17 +15,18 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+// ⚠️  Make sure BACKEND_URL in your .env has NO trailing slash
+// e.g.  BACKEND_URL=http://localhost:5000
 passport.use(
   new SteamStrategy(
     {
       returnURL: `${process.env.BACKEND_URL}/api/auth/steam/callback`,
-      realm: process.env.BACKEND_URL,
+      realm: `${process.env.BACKEND_URL}/`,   // <-- trailing slash is required by Steam
       apiKey: process.env.STEAM_API_KEY,
     },
     async (identifier, profile, done) => {
       try {
         const steamId = profile.id;
-
         let user = await User.findOne({ steamId });
 
         const userData = {
@@ -39,18 +40,14 @@ passport.use(
         };
 
         if (user) {
-          // Update existing user info from Steam
           Object.assign(user, userData);
           await user.save();
         } else {
-          // Create new user
           user = await User.create(userData);
-          console.log(`✅ New user registered: ${user.username} (${steamId})`);
         }
 
         return done(null, user);
       } catch (err) {
-        console.error('❌ Steam auth error:', err);
         return done(err, null);
       }
     }
