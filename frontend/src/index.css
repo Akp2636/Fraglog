@@ -172,3 +172,6 @@
 .glow-green {
   box-shadow: 0 0 30px rgba(185,255,87,0.2);
 }
+main {
+  padding-top: 64px;
+}

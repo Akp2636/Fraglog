@@ -10,13 +10,10 @@ import NotFound from './pages/NotFound'
 
 export default function App() {
 return (
-<div style={{ minHeight: '100vh', background: '#0f0f17' }}>
+<div style={{ minHeight: '100vh', background: '#0f0f17' }}> <Navbar />
 
 ```
-  <Navbar />
-
-  {/* Offset for fixed navbar (64px height) */}
-  <div style={{ paddingTop: 64 }}>
+  <main>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
@@ -26,7 +23,7 @@ return (
       <Route path="/discover" element={<Discover />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
-  </div>
+  </main>
 
 </div>
 
