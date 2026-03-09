@@ -1,157 +1,70 @@
-const express = require('express');
-const axios   = require('axios');
-const router  = express.Router();
-const User    = require('../models/User');
+const express  = require('express');
+const passport = require('passport');
+const router   = express.Router();
 
-const BACKEND  = (process.env.BACKEND_URL  || 'http://localhost:5000').replace(/\/$/, '');
 const FRONTEND = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-const STEAM_KEY = process.env.STEAM_API_KEY;
-
-const STEAM_OPENID = 'https://steamcommunity.com/openid/login';
-const RETURN_URL   = `${BACKEND}/api/auth/steam/callback`;
 
 // ── Debug ─────────────────────────────────────────────────────────────────────
 router.get('/debug', (req, res) => {
+  const BACKEND = (process.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '');
   res.json({
     BACKEND_URL   : process.env.BACKEND_URL   || 'NOT SET',
     FRONTEND_URL  : process.env.FRONTEND_URL  || 'NOT SET',
     NODE_ENV      : process.env.NODE_ENV      || 'NOT SET',
-    STEAM_API_KEY : STEAM_KEY ? '✅ set' : '❌ MISSING',
+    STEAM_API_KEY : process.env.STEAM_API_KEY ? '✅ set' : '❌ MISSING',
     SESSION_SECRET: process.env.SESSION_SECRET ? '✅ set' : '❌ MISSING',
     MONGO_URI     : process.env.MONGO_URI     ? '✅ set' : '❌ MISSING',
-    returnURL     : RETURN_URL,
-    realm         : BACKEND + '/',
+    returnURL     : `${BACKEND}/api/auth/steam/return`,
+    realm         : `${BACKEND}/`,
   });
 });
 
-// ── Step 1: Redirect to Steam OpenID ─────────────────────────────────────────
-router.get('/steam', (req, res) => {
-  const params = new URLSearchParams({
-    'openid.ns'         : 'http://specs.openid.net/auth/2.0',
-    'openid.mode'       : 'checkid_setup',
-    'openid.return_to'  : RETURN_URL,
-    'openid.realm'      : BACKEND + '/',
-    'openid.identity'   : 'http://specs.openid.net/auth/2.0/identifier_select',
-    'openid.claimed_id' : 'http://specs.openid.net/auth/2.0/identifier_select',
-  });
-
-  res.redirect(`${STEAM_OPENID}?${params.toString()}`);
+// ── Step 1: Start Steam login ─────────────────────────────────────────────────
+router.get('/steam', (req, res, next) => {
+  console.log('Steam login initiated');
+  passport.authenticate('steam', { failureRedirect: '/' })(req, res, next);
 });
 
-// ── Step 2: Steam callback — verify + fetch profile ──────────────────────────
-router.get('/steam/callback', async (req, res) => {
-  try {
-    const query = req.query;
-
-    if (query['openid.mode'] !== 'id_res') {
-      return res.redirect(`${FRONTEND}/?error=auth_cancelled`);
-    }
-
-    // Step 1: Verify with Steam
-    console.log('🔄 Step 1: Verifying with Steam...');
-    const verifyParams = new URLSearchParams();
-    Object.entries(query).forEach(([k, v]) => verifyParams.append(k, v));
-    verifyParams.set('openid.mode', 'check_authentication');
-
-    let verifyRes;
-    try {
-      verifyRes = await axios.post(STEAM_OPENID, verifyParams.toString(), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 10000,
-      });
-    } catch (verifyErr) {
-      console.error('❌ Steam verify POST failed:', verifyErr.message);
-      return res.redirect(`${FRONTEND}/?error=verify_network_error`);
-    }
-
-    if (!verifyRes.data.includes('is_valid:true')) {
-      console.error('❌ Steam said not valid:', verifyRes.data);
-      return res.redirect(`${FRONTEND}/?error=verify_failed`);
-    }
-
-    // Step 2: Extract Steam ID
-    console.log('🔄 Step 2: Extracting Steam ID...');
-    const claimedId = query['openid.claimed_id'] || '';
-    const steamId   = claimedId.replace('https://steamcommunity.com/openid/id/', '');
-
-    if (!steamId || !/^\d+$/.test(steamId)) {
-      console.error('❌ Bad steamId:', claimedId);
-      return res.redirect(`${FRONTEND}/?error=invalid_id`);
-    }
-    console.log('✅ Steam ID:', steamId);
-
-    // Step 3: Fetch Steam profile
-    console.log('🔄 Step 3: Fetching Steam profile...');
-    let player;
-    try {
-      const profileRes = await axios.get(
-        'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/',
-        {
-          params : { key: STEAM_KEY, steamids: steamId },
-          timeout: 10000,
-        }
-      );
-      player = profileRes.data?.response?.players?.[0];
-    } catch (profileErr) {
-      console.error('❌ Steam API call failed:', profileErr.message);
-      return res.redirect(`${FRONTEND}/?error=steam_api_error`);
-    }
-
-    if (!player) {
-      console.error('❌ No player in Steam response for:', steamId);
-      return res.redirect(`${FRONTEND}/?error=no_profile`);
-    }
-    console.log('✅ Got Steam profile:', player.personaname);
-
-    // Step 4: Save to MongoDB
-    console.log('🔄 Step 4: Saving to MongoDB...');
-    let user;
-    try {
-      user = await User.findOne({ steamId });
-
-      const userData = {
-        steamId,
-        username    : player.personaname    || 'Unknown',
-        avatar      : player.avatarfull     || player.avatar || '',
-        profileUrl  : player.profileurl     || '',
-        realName    : player.realname       || '',
-        countryCode : player.loccountrycode || '',
-        lastLogin   : new Date(),
-      };
-
-      if (user) {
-        Object.assign(user, userData);
-        await user.save();
-        console.log('✅ Updated user:', user.username);
-      } else {
-        user = await User.create(userData);
-        console.log('✅ Created user:', user.username);
+// ── Step 2: Steam returns here ────────────────────────────────────────────────
+router.get('/steam/return',
+  (req, res, next) => {
+    passport.authenticate('steam', {
+      failureRedirect: FRONTEND + '/?error=auth_failed',
+      failureMessage: true
+    }, (err, user) => {
+      if (err) {
+        console.error(`Steam callback error: ${err.message}`);
+        return res.redirect(FRONTEND + '/?error=auth_error');
       }
-    } catch (dbErr) {
-      console.error('❌ MongoDB error:', dbErr.message);
-      return res.redirect(`${FRONTEND}/?error=db_error`);
-    }
+      if (!user) {
+        console.warn('Steam callback: no user returned');
+        return res.redirect(FRONTEND + '/?error=no_user');
+      }
 
-    // Step 5: Encode and redirect
-    console.log('🔄 Step 5: Redirecting to frontend...');
-    const encoded = Buffer.from(JSON.stringify({
-      _id          : user._id,
-      steamId      : user.steamId,
-      username     : user.username,
-      avatar       : user.avatar,
-      profileUrl   : user.profileUrl,
-      bio          : user.bio           || '',
-      favoriteGames: user.favoriteGames || [],
-    })).toString('base64');
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          console.error(`Session login error: ${loginErr.message}`);
+          return res.redirect(FRONTEND + '/?error=login_error');
+        }
 
-    console.log('✅ All done! Redirecting to frontend callback');
-    return res.redirect(`${FRONTEND}/auth/callback?data=${encoded}`);
+        console.log(`✅ User authenticated: ${user.username} (${user.steamId})`);
 
-  } catch (err) {
-    console.error('❌ UNEXPECTED error in callback:', err.message, err.stack);
-    return res.redirect(`${FRONTEND}/?error=server_error`);
+        // Encode user data → pass to frontend via URL
+        const encoded = Buffer.from(JSON.stringify({
+          _id          : user._id,
+          steamId      : user.steamId,
+          username     : user.username,
+          avatar       : user.avatar,
+          profileUrl   : user.profileUrl   || '',
+          bio          : user.bio          || '',
+          favoriteGames: user.favoriteGames || [],
+        })).toString('base64');
+
+        return res.redirect(`${FRONTEND}/auth/callback?data=${encoded}`);
+      });
+    })(req, res, next);
   }
-});
+);
 
 // ── Get current session user ──────────────────────────────────────────────────
 router.get('/me', (req, res) => {
@@ -174,10 +87,15 @@ router.get('/me', (req, res) => {
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 router.get('/logout', (req, res, next) => {
+  const steamId = req.user ? req.user.steamId : 'unknown';
   req.logout((err) => {
-    if (err) return next(err);
+    if (err) {
+      console.error(`Logout error for ${steamId}: ${err.message}`);
+      return next(err);
+    }
     req.session.destroy(() => {
       res.clearCookie('connect.sid');
+      console.log(`User logged out: ${steamId}`);
       res.json({ message: 'Logged out' });
     });
   });
