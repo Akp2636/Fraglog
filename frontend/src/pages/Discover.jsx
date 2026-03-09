@@ -1,141 +1,149 @@
-import { useState, useEffect } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { FiSearch, FiTrendingUp } from 'react-icons/fi'
 import api from '../utils/api'
-import { PageLoader, EmptyState } from '../components/LoadingSpinner'
+import { PageLoader, SkeletonCard } from '../components/LoadingSpinner'
 
 export default function Discover() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const initialQ = searchParams.get('q') || ''
-
-  const [query, setQuery] = useState(initialQ)
-  const [inputVal, setInputVal] = useState(initialQ)
-  const [results, setResults] = useState([])
-  const [trending, setTrending] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [searched, setSearched] = useState(false)
+  const [params]   = useSearchParams()
+  const [query,    setQuery]   = useState(params.get('q') || '')
+  const [input,    setInput]   = useState(params.get('q') || '')
+  const [results,  setResults] = useState([])
+  const [trending, setTrending]= useState([])
+  const [loading,  setLoading] = useState(false)
+  const navigate   = useNavigate()
 
   useEffect(() => {
-    api.get('/games/trending/now').then((res) => setTrending(res.data)).catch(() => {})
+    api.get('/games/trending').then(r => setTrending(r.data.games || [])).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (!query.trim()) { setResults([]); setSearched(false); return }
-    const search = async () => {
-      setLoading(true)
-      setSearched(true)
-      try {
-        const res = await api.get(`/games/search?q=${encodeURIComponent(query)}`)
-        setResults(res.data)
-      } catch {
-        setResults([])
-      } finally {
-        setLoading(false)
-      }
-    }
-    const t = setTimeout(search, 300)
+    if (!query.trim()) { setResults([]); return }
+    setLoading(true)
+    const t = setTimeout(() => {
+      api.get(`/games/search?q=${encodeURIComponent(query)}`)
+        .then(r => setResults(r.data.games || []))
+        .catch(() => setResults([]))
+        .finally(() => setLoading(false))
+    }, 350)
     return () => clearTimeout(t)
   }, [query])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = e => {
     e.preventDefault()
-    setQuery(inputVal)
-    setSearchParams(inputVal ? { q: inputVal } : {})
+    setQuery(input)
+    navigate(`/discover?q=${encodeURIComponent(input)}`, { replace: true })
   }
 
   return (
-    <div className="page-container max-w-4xl">
-      <div className="mb-8">
-        <h1 className="font-display font-black text-3xl text-text-primary mb-2">
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2.5rem 1.5rem', minHeight: '80vh' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 32, color: '#f0f0f8', marginBottom: 8 }}>
           Discover Games
         </h1>
-        <p className="text-sm text-text-muted font-body">
-          Search the entire Steam catalog — find a game and read what the community thinks.
+        <p style={{ fontFamily: 'Karla', fontSize: 15, color: '#8888aa' }}>
+          Search any game on Steam. Read reviews, see ratings, log your status.
         </p>
       </div>
 
-      {/* Search bar */}
-      <form onSubmit={handleSubmit} className="relative mb-8">
-        <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
-        <input
-          type="text"
-          placeholder="Search Steam games…"
-          value={inputVal}
-          onChange={(e) => { setInputVal(e.target.value); setQuery(e.target.value); setSearchParams(e.target.value ? { q: e.target.value } : {}) }}
-          autoFocus
-          className="w-full bg-bg-secondary border border-border text-text-primary rounded-xl pl-12 pr-4 py-4 text-base placeholder:text-text-muted focus:outline-none focus:border-accent-green transition-colors font-body"
-        />
+      {/* Search */}
+      <form onSubmit={handleSubmit} style={{ marginBottom: '2.5rem' }}>
+        <div style={{ position: 'relative', maxWidth: 600 }}>
+          <FiSearch style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#555570', pointerEvents: 'none', fontSize: 16 }} />
+          <input
+            value={input}
+            onChange={e => { setInput(e.target.value); setQuery(e.target.value) }}
+            placeholder="Search Steam games..."
+            autoFocus
+            style={{
+              width: '100%', background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 12,
+              paddingLeft: 46, paddingRight: 16, paddingTop: 14, paddingBottom: 14,
+              fontSize: 16, color: '#f0f0f8', fontFamily: 'Karla', outline: 'none', transition: 'border-color 0.2s',
+            }}
+            onFocus={e => e.target.style.borderColor = '#00e676'}
+            onBlur={e  => e.target.style.borderColor = '#2a2a3d'}
+          />
+        </div>
       </form>
 
       {/* Results */}
       {loading ? (
-        <PageLoader />
-      ) : searched && results.length === 0 ? (
-        <EmptyState
-          icon={FiSearch}
-          title="No games found"
-          description={`No Steam games match "${query}". Try a different search.`}
-        />
-      ) : results.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {results.map((game, i) => (
-            <Link
-              key={game.appId}
-              to={`/game/${game.appId}`}
-              className="card group hover:border-border-light transition-all animate-fade-in-up flex items-center gap-3 p-2"
-              style={{ animationDelay: `${i * 0.05}s`, opacity: 0 }}
-            >
-              <img
-                src={game.headerImage}
-                alt={game.name}
-                className="w-28 h-14 object-cover rounded flex-shrink-0 bg-bg-elevated"
-                onError={(e) => { e.target.style.display = 'none' }}
-              />
-              <div className="min-w-0">
-                <p className="font-body font-medium text-text-primary text-sm truncate group-hover:text-accent-green transition-colors">
-                  {game.name}
-                </p>
-                {game.price && (
-                  <p className="text-xs font-mono text-text-muted mt-0.5">
-                    {game.price.final === 0 ? 'Free' : `$${(game.price.final / 100).toFixed(2)}`}
-                  </p>
-                )}
-              </div>
-            </Link>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+          {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
+        </div>
+      ) : query && results.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '4rem', color: '#555570' }}>
+          <p style={{ fontSize: 40, marginBottom: 12 }}>🔍</p>
+          <p style={{ fontFamily: 'Karla', fontSize: 15 }}>No games found for "{query}"</p>
+        </div>
+      ) : query && results.length > 0 ? (
+        <div>
+          <p style={{ fontFamily: 'Karla', fontSize: 13, color: '#555570', marginBottom: '1rem' }}>
+            {results.length} results for "{query}"
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+            {results.map(g => (
+              <Link key={g.id} to={`/game/${g.id}`} style={{ textDecoration: 'none' }}>
+                <div className="game-card-hover" style={{
+                  background: '#1c1c28', borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2a3d',
+                }}>
+                  <div style={{ paddingTop: '46.7%', position: 'relative', background: '#0f0f17' }}>
+                    <img src={g.tiny_image || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/header.jpg`}
+                      alt={g.name}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => e.target.style.display = 'none'}
+                    />
+                  </div>
+                  <div style={{ padding: '0.6rem 0.75rem' }}>
+                    <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: '#f0f0f8',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {g.name}
+                    </p>
+                    {g.price && (
+                      <p style={{ fontFamily: 'Karla', fontSize: 11, color: '#00e676', marginTop: 2 }}>
+                        {g.price.final_formatted || 'Free'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       ) : (
-        /* Trending section (when no search) */
+        /* Trending */
         trending.length > 0 && (
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <FiTrendingUp className="text-accent-gold" />
-              <h2 className="section-title">Trending on Fraglog</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1.25rem' }}>
+              <FiTrendingUp style={{ color: '#00e676' }} />
+              <h2 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 18, color: '#f0f0f8' }}>
+                Trending on Fraglog
+              </h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {trending.map((game, i) => (
-                <Link
-                  key={game._id}
-                  to={`/game/${game._id}`}
-                  className="card group hover:border-border-light transition-all p-3 animate-fade-in-up"
-                  style={{ animationDelay: `${i * 0.06}s`, opacity: 0 }}
-                >
-                  <img
-                    src={game.gameHeaderImage}
-                    alt={game.gameName}
-                    className="w-full aspect-[460/215] object-cover rounded mb-2 bg-bg-elevated group-hover:opacity-90 transition-opacity"
-                    onError={(e) => { e.target.style.display = 'none' }}
-                  />
-                  <p className="text-sm font-body font-medium text-text-primary truncate group-hover:text-accent-green transition-colors">
-                    {game.gameName}
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs font-mono text-text-muted">
-                      {game.reviewCount} review{game.reviewCount !== 1 ? 's' : ''}
-                    </span>
-                    {game.avgRating && (
-                      <span className="text-xs font-mono text-accent-gold">★ {Number(game.avgRating).toFixed(1)}</span>
-                    )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+              {trending.map(g => (
+                <Link key={g._id} to={`/game/${g._id}`} style={{ textDecoration: 'none' }}>
+                  <div className="game-card-hover" style={{
+                    background: '#1c1c28', borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2a3d',
+                  }}>
+                    <div style={{ paddingTop: '46.7%', position: 'relative', background: '#0f0f17' }}>
+                      <img
+                        src={g.headerImage || `https://cdn.akamai.steamstatic.com/steam/apps/${g._id}/header.jpg`}
+                        alt={g.gameName}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => e.target.style.display = 'none'}
+                      />
+                    </div>
+                    <div style={{ padding: '0.6rem 0.75rem' }}>
+                      <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: '#f0f0f8',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {g.gameName}
+                      </p>
+                      <p style={{ fontFamily: 'Karla', fontSize: 11, color: '#555570', marginTop: 2 }}>
+                        {g.count} review{g.count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
                   </div>
                 </Link>
               ))}

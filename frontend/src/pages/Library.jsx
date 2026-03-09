@@ -1,307 +1,143 @@
-import { useEffect, useState, useCallback } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { FiSearch, FiFilter, FiLock, FiGrid, FiList } from 'react-icons/fi'
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { FiSearch, FiGrid, FiList } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
-import api from '../utils/api'
-import { PageLoader, EmptyState, ErrorState } from '../components/LoadingSpinner'
-import { formatPlaytime } from '../utils/helpers'
+import GameCard from '../components/GameCard'
 import LogGameModal from '../components/LogGameModal'
-import { StarRatingDisplay } from '../components/StarRating'
-
-const SORT_OPTIONS = [
-  { value: 'playtime', label: 'Most Played' },
-  { value: 'recent', label: 'Recently Played' },
-  { value: 'name', label: 'Name (A–Z)' },
-]
+import { PageLoader, EmptyState } from '../components/LoadingSpinner'
+import { formatPlaytime } from '../utils/helpers'
+import api from '../utils/api'
 
 export default function Library() {
-  const { steamId } = useParams()
-  const { user } = useAuth()
-  const navigate = useNavigate()
+  const { steamId }  = useParams()
+  const { user: me } = useAuth()
+  const isOwn        = me?.steamId === steamId
 
-  const [games, setGames] = useState([])
-  const [total, setTotal] = useState(0)
+  const [games,   setGames]   = useState([])
+  const [total,   setTotal]   = useState(0)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('playtime')
-  const [view, setView] = useState('grid')
-  const [logModal, setLogModal] = useState(null) // { game }
-  const [userLogs, setUserLogs] = useState({}) // appId -> log
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [offset, setOffset] = useState(0)
-  const LIMIT = 60
-
-  const isOwnLibrary = user?.steamId === steamId
-
-  const fetchLibrary = useCallback(async (resetOffset = true) => {
-    const currentOffset = resetOffset ? 0 : offset
-    if (resetOffset) {
-      setLoading(true)
-      setOffset(0)
-    } else {
-      setLoadingMore(true)
-    }
-    setError(null)
-
-    try {
-      const res = await api.get(`/users/${steamId}/library?sort=${sort}&limit=${LIMIT}&offset=${currentOffset}`)
-      const newGames = res.data.games
-
-      if (resetOffset) {
-        setGames(newGames)
-      } else {
-        setGames((prev) => [...prev, ...newGames])
-        setOffset(currentOffset + newGames.length)
-      }
-      setTotal(res.data.total)
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to load library'
-      setError(msg)
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
-    }
-  }, [steamId, sort, offset])
+  const [sort,    setSort]    = useState('playtime')
+  const [search,  setSearch]  = useState('')
+  const [view,    setView]    = useState('grid')
+  const [logGame, setLogGame] = useState(null)
 
   useEffect(() => {
-    fetchLibrary(true)
+    setLoading(true)
+    api.get(`/users/${steamId}/library?sort=${sort}&limit=200`)
+      .then(r => { setGames(r.data.games || []); setTotal(r.data.total || 0) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [steamId, sort])
 
-  // Fetch current user's logs to show status badges
-  useEffect(() => {
-    if (!user) return
-    api.get('/logs/my').then((res) => {
-      const map = {}
-      res.data.forEach((log) => { map[log.appId] = log })
-      setUserLogs(map)
-    }).catch(() => {})
-  }, [user])
+  const filtered = search.trim()
+    ? games.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
+    : games
 
-  const filtered = games.filter((g) =>
-    !search || g.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  if (loading) return <PageLoader />
-
-  if (error) {
-    return (
-      <div className="page-container">
-        {error.includes('private') ? (
-          <div className="max-w-md mx-auto text-center py-16">
-            <div className="w-16 h-16 rounded-full bg-accent-gold/10 border border-accent-gold/30 flex items-center justify-center mx-auto mb-4">
-              <FiLock size={24} className="text-accent-gold" />
-            </div>
-            <h2 className="font-display font-bold text-text-primary text-xl mb-2">Private Library</h2>
-            <p className="text-text-muted font-body text-sm mb-4">{error}</p>
-            <a
-              href="https://steamcommunity.com/my/edit/settings"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary inline-flex items-center gap-2 text-sm"
-            >
-              Open Steam Privacy Settings
-            </a>
-          </div>
-        ) : (
-          <ErrorState message={error} onRetry={() => fetchLibrary(true)} />
-        )}
-      </div>
-    )
-  }
+  const totalHours = games.reduce((sum, g) => sum + (g.playtime_forever || 0), 0)
 
   return (
-    <div className="page-container">
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2.5rem 1.5rem', minHeight: '80vh' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h1 className="font-display font-black text-2xl text-text-primary">
-            {isOwnLibrary ? 'My Library' : 'Steam Library'}
+          <h1 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 30, color: '#f0f0f8', marginBottom: 4 }}>
+            {isOwn ? 'My Library' : 'Library'}
           </h1>
-          <p className="text-sm text-text-muted font-mono mt-0.5">
-            {total.toLocaleString()} games{search ? ` · ${filtered.length} matching` : ''}
-          </p>
+          {!loading && (
+            <p style={{ fontFamily: 'Karla', fontSize: 14, color: '#555570' }}>
+              {total} games · {formatPlaytime(totalHours)} total played
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Sort */}
-          <div className="flex items-center gap-1.5">
-            <FiFilter size={13} className="text-text-muted" />
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              className="input py-1.5 text-xs w-auto"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+        {/* Controls */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <FiSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#555570', pointerEvents: 'none', fontSize: 13 }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter games..."
+              style={{
+                background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 8,
+                paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
+                fontSize: 13, color: '#f0f0f8', fontFamily: 'Karla', outline: 'none', width: 180,
+              }}
+            />
           </div>
+
+          {/* Sort */}
+          <select value={sort} onChange={e => setSort(e.target.value)}
+            style={{ background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#f0f0f8', fontFamily: 'Karla', cursor: 'pointer', outline: 'none' }}>
+            <option value="playtime">Most Played</option>
+            <option value="recent">Recently Played</option>
+            <option value="name">Alphabetical</option>
+          </select>
 
           {/* View toggle */}
-          <div className="flex border border-border rounded overflow-hidden">
-            <button
-              onClick={() => setView('grid')}
-              className={`p-2 transition-colors ${view === 'grid' ? 'bg-bg-elevated text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-            >
-              <FiGrid size={14} />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`p-2 transition-colors ${view === 'list' ? 'bg-bg-elevated text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-            >
-              <FiList size={14} />
-            </button>
+          <div style={{ display: 'flex', background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 8, overflow: 'hidden' }}>
+            {[['grid', FiGrid], ['list', FiList]].map(([v, Icon]) => (
+              <button key={v} onClick={() => setView(v)} style={{
+                background: view === v ? '#2a2a3d' : 'transparent', border: 'none',
+                padding: '8px 12px', cursor: 'pointer', color: view === v ? '#f0f0f8' : '#555570', transition: 'all 0.15s',
+              }}>
+                <Icon size={14} />
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm" />
-        <input
-          type="text"
-          placeholder={`Search ${total.toLocaleString()} games…`}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input pl-9"
-        />
-      </div>
-
-      {/* Games */}
-      {filtered.length === 0 ? (
-        <EmptyState title="No games found" description="Try a different search term." />
+      {loading ? (
+        <PageLoader />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="🎮" title={search ? `No games matching "${search}"` : 'Library is empty'} />
       ) : view === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {filtered.map((game, i) => (
-            <LibraryGameCard
-              key={game.appId}
-              game={game}
-              log={userLogs[game.appId]}
-              isOwnLibrary={isOwnLibrary}
-              onLog={(g) => setLogModal({ game: g })}
-              index={i}
-            />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+          {filtered.map(g => (
+            <div key={g.appid} style={{ position: 'relative' }} onClick={() => isOwn && setLogGame(g)}>
+              <GameCard game={g} log={g.log} />
+            </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-1">
-          {filtered.map((game) => (
-            <LibraryGameRow
-              key={game.appId}
-              game={game}
-              log={userLogs[game.appId]}
-              isOwnLibrary={isOwnLibrary}
-              onLog={(g) => setLogModal({ game: g })}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {filtered.map(g => (
+            <div key={g.appid} onClick={() => isOwn && setLogGame(g)} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 10,
+              padding: '10px 14px', cursor: isOwn ? 'pointer' : 'default',
+              transition: 'background 0.15s',
+            }}
+              onMouseEnter={e => { if (isOwn) e.currentTarget.style.background = '#222232' }}
+              onMouseLeave={e => e.currentTarget.style.background = '#1c1c28'}
+            >
+              <img src={`https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`}
+                style={{ width: 64, height: 30, objectFit: 'cover', borderRadius: 4 }}
+                onError={e => e.target.style.display = 'none'}
+              />
+              <p style={{ flex: 1, fontFamily: 'Karla', fontWeight: 700, fontSize: 14, color: '#f0f0f8',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {g.name}
+              </p>
+              <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: '#555570', flexShrink: 0 }}>
+                {formatPlaytime(g.playtime_forever)}
+              </span>
+              {g.log && (
+                <span style={{ fontSize: 11, fontFamily: 'Karla', fontWeight: 700, color: '#00e676', flexShrink: 0, background: '#00e67620', padding: '2px 8px', borderRadius: 4 }}>
+                  {g.log.status.replace('_', ' ')}
+                </span>
+              )}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Load more */}
-      {!search && games.length < total && (
-        <div className="text-center mt-8">
-          <button
-            onClick={() => fetchLibrary(false)}
-            disabled={loadingMore}
-            className="btn-ghost"
-          >
-            {loadingMore ? 'Loading…' : `Load More (${total - games.length} remaining)`}
-          </button>
-        </div>
-      )}
-
-      {/* Log modal */}
-      {logModal && (
+      {logGame && isOwn && (
         <LogGameModal
-          game={logModal.game}
-          existingLog={userLogs[logModal.game.appId]}
-          onClose={() => setLogModal(null)}
-          onSaved={(updatedLog) => {
-            setUserLogs((prev) => {
-              const next = { ...prev }
-              if (updatedLog) next[logModal.game.appId] = updatedLog
-              else delete next[logModal.game.appId]
-              return next
-            })
-          }}
+          game={logGame}
+          existing={logGame.log}
+          onClose={() => setLogGame(null)}
+          onSave={log => setGames(gs => gs.map(g => String(g.appid) === String(logGame.appid) ? { ...g, log } : g))}
         />
-      )}
-    </div>
-  )
-}
-
-function LibraryGameCard({ game, log, isOwnLibrary, onLog, index }) {
-  return (
-    <div
-      className="group relative animate-fade-in-up"
-      style={{ animationDelay: `${Math.min(index * 0.02, 0.4)}s`, opacity: 0 }}
-    >
-      <Link to={`/game/${game.appId}`}>
-        <div className="aspect-[460/215] overflow-hidden rounded-lg bg-bg-elevated border border-border group-hover:border-border-light transition-colors">
-          <img
-            src={game.headerImage}
-            alt={game.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => { e.target.style.display = 'none' }}
-          />
-        </div>
-        <p className="text-xs font-body text-text-secondary mt-1.5 truncate px-0.5 group-hover:text-accent-green transition-colors">
-          {game.name}
-        </p>
-        <p className="text-xs font-mono text-text-muted px-0.5">
-          {formatPlaytime(game.playtimeMinutes)}
-        </p>
-      </Link>
-
-      {/* Log button overlay */}
-      {isOwnLibrary && (
-        <button
-          onClick={() => onLog(game)}
-          className={`absolute top-1.5 right-1.5 text-xs font-mono px-1.5 py-0.5 rounded border transition-all ${
-            log
-              ? 'bg-accent-green/90 border-accent-green text-bg-primary'
-              : 'bg-bg-card/80 border-border text-text-muted opacity-0 group-hover:opacity-100 hover:border-accent-green hover:text-accent-green'
-          }`}
-        >
-          {log ? '✓' : '+'}
-        </button>
-      )}
-    </div>
-  )
-}
-
-function LibraryGameRow({ game, log, isOwnLibrary, onLog }) {
-  return (
-    <div className="flex items-center gap-3 p-2 rounded hover:bg-bg-elevated transition-colors group">
-      <Link to={`/game/${game.appId}`} className="flex items-center gap-3 flex-1 min-w-0">
-        <img
-          src={game.headerImage}
-          alt={game.name}
-          className="w-20 h-10 object-cover rounded flex-shrink-0 bg-bg-elevated"
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-body text-text-primary truncate group-hover:text-accent-green transition-colors">
-            {game.name}
-          </p>
-          <p className="text-xs font-mono text-text-muted">{formatPlaytime(game.playtimeMinutes)}</p>
-        </div>
-      </Link>
-
-      {log?.rating && <StarRatingDisplay value={log.rating} size={12} />}
-
-      {isOwnLibrary && (
-        <button
-          onClick={() => onLog(game)}
-          className={`text-xs font-mono px-2.5 py-1 rounded border transition-colors flex-shrink-0 ${
-            log
-              ? 'border-accent-green/50 text-accent-green bg-accent-green/10'
-              : 'border-border text-text-muted hover:border-accent-green hover:text-accent-green'
-          }`}
-        >
-          {log ? 'Logged' : '+ Log'}
-        </button>
       )}
     </div>
   )

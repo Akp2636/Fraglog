@@ -1,155 +1,94 @@
 const express = require('express');
-const router = express.Router();
-const Review = require('../models/Review');
-const { isAuthenticated } = require('../middleware/authMiddleware');
+const router  = express.Router();
+const Review  = require('../models/Review');
+const User    = require('../models/User');
 
-// GET /api/reviews/feed — recent reviews from all users (home feed)
+const auth = (req, res, next) => {
+  if (!req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
+  next();
+};
+
+// ── GET /api/reviews/feed ─────────────────────────────────────────────────────
 router.get('/feed', async (req, res) => {
   try {
-    const { page = 1, limit = 15 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { limit = 20, offset = 0 } = req.query;
+    const reviews = await Review.find()
+      .sort({ createdAt: -1 }).skip(+offset).limit(+limit);
 
-    const [reviews, total] = await Promise.all([
-      Review.find()
-        .populate('userId', 'username avatar steamId')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-      Review.countDocuments(),
-    ]);
+    // Attach user info
+    const steamIds = [...new Set(reviews.map(r => r.steamId))];
+    const users    = await User.find({ steamId: { $in: steamIds } }).select('steamId username avatar');
+    const userMap  = {};
+    users.forEach(u => { userMap[u.steamId] = u; });
 
-    const enriched = reviews.map((r) => ({ ...r, likeCount: r.likes?.length || 0 }));
-    res.json({ reviews: enriched, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+    const enriched = reviews.map(r => ({ ...r.toObject(), author: userMap[r.steamId] || null }));
+    res.json({ reviews: enriched });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch feed' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/reviews/:id — single review
-router.get('/:id', async (req, res) => {
-  try {
-    const review = await Review.findById(req.params.id)
-      .populate('userId', 'username avatar steamId bio')
-      .lean();
-    if (!review) return res.status(404).json({ error: 'Review not found' });
-    res.json({ ...review, likeCount: review.likes?.length || 0 });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch review' });
-  }
-});
-
-// POST /api/reviews — create a review (auth required)
-router.post('/', isAuthenticated, async (req, res) => {
+// ── POST /api/reviews ─────────────────────────────────────────────────────────
+router.post('/', auth, async (req, res) => {
   try {
     const { appId, gameName, gameHeaderImage, title, body, rating, containsSpoilers, playedOn, hoursAtReview } = req.body;
+    const { _id, steamId } = req.session.user;
 
-    if (!appId || !gameName || !body || !rating) {
-      return res.status(400).json({ error: 'appId, gameName, body, and rating are required' });
-    }
-
-    if (rating < 0.5 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 0.5 and 5' });
-    }
-
-    // Check duplicate
-    const existing = await Review.findOne({ userId: req.user._id, appId });
-    if (existing) {
-      return res.status(409).json({ error: 'You already reviewed this game. Edit your existing review.' });
-    }
+    const existing = await Review.findOne({ userId: _id, appId });
+    if (existing) return res.status(400).json({ error: 'You already reviewed this game. Edit it instead.' });
 
     const review = await Review.create({
-      userId: req.user._id,
-      steamId: req.user.steamId,
-      appId: String(appId),
-      gameName,
-      gameHeaderImage: gameHeaderImage || `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`,
-      title: title || '',
-      body,
-      rating,
-      containsSpoilers: containsSpoilers || false,
-      playedOn: playedOn || 'PC',
-      hoursAtReview: hoursAtReview || 0,
-      likes: [],
+      userId: _id, steamId, appId, gameName, gameHeaderImage,
+      title, body, rating, containsSpoilers, playedOn, hoursAtReview,
     });
-
-    await review.populate('userId', 'username avatar steamId');
-    res.status(201).json(review);
+    res.status(201).json({ review });
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(409).json({ error: 'You already reviewed this game.' });
-    }
-    console.error(err);
-    res.status(500).json({ error: 'Failed to create review' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// PUT /api/reviews/:id — update review (owner only)
-router.put('/:id', isAuthenticated, async (req, res) => {
+// ── PUT /api/reviews/:id ──────────────────────────────────────────────────────
+router.put('/:id', auth, async (req, res) => {
   try {
     const review = await Review.findById(req.params.id);
     if (!review) return res.status(404).json({ error: 'Review not found' });
-
-    if (!review.userId.equals(req.user._id)) {
-      return res.status(403).json({ error: 'Not your review' });
-    }
+    if (review.steamId !== req.session.user.steamId) return res.status(403).json({ error: 'Forbidden' });
 
     const { title, body, rating, containsSpoilers, playedOn, hoursAtReview } = req.body;
-
-    if (body !== undefined) review.body = body;
-    if (title !== undefined) review.title = title;
-    if (rating !== undefined) {
-      if (rating < 0.5 || rating > 5) return res.status(400).json({ error: 'Rating must be 0.5–5' });
-      review.rating = rating;
-    }
-    if (containsSpoilers !== undefined) review.containsSpoilers = containsSpoilers;
-    if (playedOn !== undefined) review.playedOn = playedOn;
-    if (hoursAtReview !== undefined) review.hoursAtReview = hoursAtReview;
-
+    Object.assign(review, { title, body, rating, containsSpoilers, playedOn, hoursAtReview });
     await review.save();
-    await review.populate('userId', 'username avatar steamId');
-    res.json(review);
+    res.json({ review });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update review' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE /api/reviews/:id — delete review (owner only)
-router.delete('/:id', isAuthenticated, async (req, res) => {
+// ── DELETE /api/reviews/:id ───────────────────────────────────────────────────
+router.delete('/:id', auth, async (req, res) => {
   try {
     const review = await Review.findById(req.params.id);
     if (!review) return res.status(404).json({ error: 'Review not found' });
-
-    if (!review.userId.equals(req.user._id)) {
-      return res.status(403).json({ error: 'Not your review' });
-    }
-
+    if (review.steamId !== req.session.user.steamId) return res.status(403).json({ error: 'Forbidden' });
     await review.deleteOne();
-    res.json({ message: 'Review deleted' });
+    res.json({ message: 'Deleted' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete review' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/reviews/:id/like — toggle like
-router.post('/:id/like', isAuthenticated, async (req, res) => {
+// ── POST /api/reviews/:id/like ────────────────────────────────────────────────
+router.post('/:id/like', auth, async (req, res) => {
   try {
-    const review = await Review.findById(req.params.id);
-    if (!review) return res.status(404).json({ error: 'Review not found' });
-
-    const userId = req.user._id;
-    const alreadyLiked = review.likes.some((id) => id.equals(userId));
-
-    if (alreadyLiked) {
-      review.likes = review.likes.filter((id) => !id.equals(userId));
-    } else {
-      review.likes.push(userId);
-    }
-
+    const review  = await Review.findById(req.params.id);
+    if (!review) return res.status(404).json({ error: 'Not found' });
+    const sid     = req.session.user.steamId;
+    const idx     = review.likes.indexOf(sid);
+    if (idx === -1) review.likes.push(sid);
+    else review.likes.splice(idx, 1);
     await review.save();
-    res.json({ liked: !alreadyLiked, likeCount: review.likes.length });
+    res.json({ liked: idx === -1, likeCount: review.likes.length });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to toggle like' });
+    res.status(500).json({ error: err.message });
   }
 });
 

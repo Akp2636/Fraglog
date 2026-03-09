@@ -1,95 +1,99 @@
 import { useState } from 'react'
-import { FiX } from 'react-icons/fi'
+import { FiX, FiTrash2 } from 'react-icons/fi'
 import { StarRatingInput } from './StarRating'
+import { STATUS_LABELS, STATUS_ICONS, STATUS_COLORS } from '../utils/helpers'
 import api from '../utils/api'
 import toast from 'react-hot-toast'
-import { STATUS_LABELS } from '../utils/helpers'
 
 const STATUSES = Object.keys(STATUS_LABELS)
 
-export default function LogGameModal({ game, existingLog, onClose, onSaved }) {
+export default function LogGameModal({ game, existing, onClose, onSave }) {
+  const appId = String(game.steam_appid || game.appid || game.appId)
   const [form, setForm] = useState({
-    status: existingLog?.status || 'played',
-    rating: existingLog?.rating || 0,
-    hoursLogged: existingLog?.hoursLogged || '',
-    notes: existingLog?.notes || '',
-    startDate: existingLog?.startDate ? existingLog.startDate.slice(0, 10) : '',
-    finishDate: existingLog?.finishDate ? existingLog.finishDate.slice(0, 10) : '',
+    status    : existing?.status     || 'want_to_play',
+    rating    : existing?.rating     || null,
+    hoursLogged: existing?.hoursLogged || '',
+    notes     : existing?.notes      || '',
+    startDate : existing?.startDate  ? existing.startDate.slice(0,10) : '',
+    finishDate: existing?.finishDate ? existing.finishDate.slice(0,10) : '',
   })
-  const [loading, setLoading] = useState(false)
+  const [saving,  setSaving]  = useState(false)
+  const [deleting,setDeleting]= useState(false)
+  const set = (k,v) => setForm(f => ({ ...f, [k]: v }))
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
+  const handleSave = async () => {
+    setSaving(true)
     try {
-      const payload = {
-        appId: game.appId,
-        gameName: game.name,
-        gameHeaderImage: game.headerImage,
+      const r = await api.post('/logs', {
         ...form,
-        rating: form.rating || null,
-        hoursLogged: Number(form.hoursLogged) || 0,
-        startDate: form.startDate || null,
-        finishDate: form.finishDate || null,
-      }
-
-      const res = await api.post('/logs', payload)
-      toast.success(`Logged as "${STATUS_LABELS[form.status]}"!`)
-      onSaved?.(res.data)
+        appId,
+        gameName   : game.name,
+        headerImage: `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
+      })
+      toast.success('Game log updated!')
+      onSave?.(r.data.log)
       onClose()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save log')
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to save')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!existingLog) return
-    if (!confirm('Remove this game from your log?')) return
+    setDeleting(true)
     try {
-      await api.delete(`/logs/${game.appId}`)
-      toast.success('Log removed')
-      onSaved?.(null)
+      await api.delete(`/logs/${appId}`)
+      toast.success('Removed from log')
+      onSave?.(null)
       onClose()
-    } catch {
-      toast.error('Failed to remove log')
+    } catch (e) {
+      toast.error('Failed to remove')
+    } finally {
+      setDeleting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-bg-card border border-border rounded-xl w-full max-w-md shadow-2xl animate-fade-in-up">
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '1rem', overflowY: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#16161f', borderRadius: 16, width: '100%', maxWidth: 500,
+        border: '1px solid #2a2a3d', boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border">
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #2a2a3d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h2 className="font-display font-bold text-text-primary">
-              {existingLog ? 'Update Log' : 'Log Game'}
-            </h2>
-            <p className="text-xs text-text-muted font-mono mt-0.5">{game.name}</p>
+            <h2 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 18, color: '#f0f0f8' }}>Log Game</h2>
+            <p style={{ fontSize: 13, color: '#8888aa', fontFamily: 'Karla', marginTop: 2 }}>{game.name}</p>
           </div>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1">
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555570', cursor: 'pointer', padding: 6 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#f0f0f8'}
+            onMouseLeave={e => e.currentTarget.style.color = '#555570'}>
             <FiX size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Status */}
+        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Status grid */}
           <div>
-            <label className="label block mb-2">Status *</label>
-            <div className="grid grid-cols-3 gap-2">
-              {STATUSES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, status: s }))}
-                  className={`py-2 px-2 rounded text-xs font-mono text-center border transition-all ${
-                    form.status === s
-                      ? 'bg-accent-green/10 border-accent-green text-accent-green'
-                      : 'border-border text-text-muted hover:border-border-light hover:text-text-secondary'
-                  }`}
-                >
-                  {STATUS_LABELS[s]}
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              {STATUSES.map(s => (
+                <button key={s} onClick={() => set('status', s)} style={{
+                  background: form.status === s ? `${STATUS_COLORS[s]}22` : '#0f0f17',
+                  border: `1px solid ${form.status === s ? STATUS_COLORS[s] : '#2a2a3d'}`,
+                  borderRadius: 8, padding: '10px 8px', cursor: 'pointer',
+                  color: form.status === s ? STATUS_COLORS[s] : '#8888aa',
+                  fontFamily: 'Karla', fontWeight: 700, fontSize: 12,
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center',
+                }}>
+                  <span>{STATUS_ICONS[s]}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{STATUS_LABELS[s]}</span>
                 </button>
               ))}
             </div>
@@ -97,71 +101,55 @@ export default function LogGameModal({ game, existingLog, onClose, onSaved }) {
 
           {/* Rating */}
           <div>
-            <label className="label block mb-2">Personal Rating (optional)</label>
-            <StarRatingInput
-              value={form.rating}
-              onChange={(v) => setForm((f) => ({ ...f, rating: v }))}
-              size={24}
-            />
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Your Rating</label>
+            <StarRatingInput value={form.rating} onChange={v => set('rating', v)} size={26} />
           </div>
 
-          {/* Hours */}
-          <div>
-            <label className="label block mb-1.5">Hours Played</label>
-            <input
-              type="number"
-              placeholder="0"
-              min="0"
-              step="0.5"
-              value={form.hoursLogged}
-              onChange={(e) => setForm((f) => ({ ...f, hoursLogged: e.target.value }))}
-              className="input"
-            />
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Hours + Dates */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             <div>
-              <label className="label block mb-1.5">Start Date</label>
-              <input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="input" />
+              <label style={{ display: 'block', fontSize: 11, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Hours</label>
+              <input className="input" type="number" min="0" value={form.hoursLogged} onChange={e => set('hoursLogged', e.target.value)} placeholder="0" />
             </div>
             <div>
-              <label className="label block mb-1.5">Finish Date</label>
-              <input type="date" value={form.finishDate} onChange={(e) => setForm((f) => ({ ...f, finishDate: e.target.value }))} className="input" />
+              <label style={{ display: 'block', fontSize: 11, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Start</label>
+              <input className="input" type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Finish</label>
+              <input className="input" type="date" value={form.finishDate} onChange={e => set('finishDate', e.target.value)} />
             </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="label block mb-1.5">Notes (optional)</label>
-            <textarea
-              placeholder="Personal notes about your playthrough…"
-              maxLength={500}
-              rows={2}
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              className="textarea"
-            />
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notes (private)</label>
+            <textarea className="textarea" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Personal thoughts, tips, progress notes..." maxLength={1000} />
           </div>
 
-          <div className="flex items-center justify-between pt-1">
-            {existingLog ? (
-              <button type="button" onClick={handleDelete} className="btn-danger text-xs">
-                Remove Log
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleSave} disabled={saving} style={{
+              flex: 1, background: '#00e676', border: 'none', borderRadius: 10, padding: '13px',
+              fontFamily: 'Syne', fontWeight: 800, fontSize: 14, color: '#0f0f17',
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+            }}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            {existing && (
+              <button onClick={handleDelete} disabled={deleting} style={{
+                background: 'none', border: '1px solid #ff4757', borderRadius: 10, padding: '13px 16px',
+                color: '#ff4757', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#ff475720' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+              >
+                <FiTrash2 size={15} />
               </button>
-            ) : (
-              <div />
             )}
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose} className="btn-ghost">
-                Cancel
-              </button>
-              <button type="submit" disabled={loading} className="btn-primary">
-                {loading ? 'Saving…' : existingLog ? 'Update' : 'Add to Log'}
-              </button>
-            </div>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )

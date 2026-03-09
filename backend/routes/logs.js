@@ -1,87 +1,59 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const GameLog = require('../models/GameLog');
-const { isAuthenticated } = require('../middleware/authMiddleware');
 
-const VALID_STATUSES = ['playing', 'played', 'want_to_play', 'dropped', 'on_hold'];
+const auth = (req, res, next) => {
+  if (!req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
+  next();
+};
 
-// POST /api/logs — create or update a game log entry (upsert)
-router.post('/', isAuthenticated, async (req, res) => {
+// ── POST /api/logs — upsert ───────────────────────────────────────────────────
+router.post('/', auth, async (req, res) => {
   try {
-    const { appId, gameName, gameHeaderImage, status, rating, hoursLogged, notes, startDate, finishDate } = req.body;
-
-    if (!appId || !gameName || !status) {
-      return res.status(400).json({ error: 'appId, gameName, and status are required' });
-    }
-
-    if (!VALID_STATUSES.includes(status)) {
-      return res.status(400).json({ error: `Status must be one of: ${VALID_STATUSES.join(', ')}` });
-    }
-
-    const update = {
-      userId: req.user._id,
-      steamId: req.user.steamId,
-      appId: String(appId),
-      gameName,
-      gameHeaderImage: gameHeaderImage || `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`,
-      status,
-      rating: rating || null,
-      hoursLogged: hoursLogged || 0,
-      notes: notes || '',
-      startDate: startDate || null,
-      finishDate: finishDate || null,
-    };
+    const { _id, steamId } = req.session.user;
+    const { appId, gameName, headerImage, status, rating, hoursLogged, notes, startDate, finishDate } = req.body;
 
     const log = await GameLog.findOneAndUpdate(
-      { userId: req.user._id, appId: String(appId) },
-      update,
-      { upsert: true, new: true, runValidators: true }
+      { userId: _id, appId },
+      { userId: _id, steamId, appId, gameName, headerImage, status, rating, hoursLogged, notes, startDate, finishDate },
+      { upsert: true, new: true }
     );
-
-    res.status(201).json(log);
+    res.json({ log });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save game log' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/logs/my — get current user's logs
-router.get('/my', isAuthenticated, async (req, res) => {
+// ── GET /api/logs/my ──────────────────────────────────────────────────────────
+router.get('/my', auth, async (req, res) => {
   try {
     const { status } = req.query;
-    const query = { userId: req.user._id };
-    if (status && VALID_STATUSES.includes(status)) query.status = status;
-
-    const logs = await GameLog.find(query).sort({ updatedAt: -1 });
-    res.json(logs);
+    const q = { userId: req.session.user._id };
+    if (status) q.status = status;
+    const logs = await GameLog.find(q).sort({ updatedAt: -1 });
+    res.json({ logs });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch logs' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/logs/check/:appId — check if current user has a log for a game
-router.get('/check/:appId', isAuthenticated, async (req, res) => {
+// ── GET /api/logs/check/:appId ────────────────────────────────────────────────
+router.get('/check/:appId', auth, async (req, res) => {
   try {
-    const log = await GameLog.findOne({ userId: req.user._id, appId: req.params.appId });
-    res.json({ log: log || null });
+    const log = await GameLog.findOne({ userId: req.session.user._id, appId: req.params.appId });
+    res.json({ log });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to check log' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE /api/logs/:appId — remove log for a game
-router.delete('/:appId', isAuthenticated, async (req, res) => {
+// ── DELETE /api/logs/:appId ───────────────────────────────────────────────────
+router.delete('/:appId', auth, async (req, res) => {
   try {
-    const result = await GameLog.findOneAndDelete({
-      userId: req.user._id,
-      appId: req.params.appId,
-    });
-
-    if (!result) return res.status(404).json({ error: 'Log entry not found' });
-
-    res.json({ message: 'Log entry removed' });
+    await GameLog.findOneAndDelete({ userId: req.session.user._id, appId: req.params.appId });
+    res.json({ message: 'Deleted' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete log' });
+    res.status(500).json({ error: err.message });
   }
 });
 

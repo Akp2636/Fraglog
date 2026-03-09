@@ -1,173 +1,79 @@
 const express = require('express');
-const axios = require('axios');
-const router = express.Router();
-const Review = require('../models/Review');
+const axios   = require('axios');
+const router  = express.Router();
+const Review  = require('../models/Review');
 const GameLog = require('../models/GameLog');
 
-const STEAM_STORE_API = 'https://store.steampowered.com/api';
-const STEAM_API_BASE = 'https://api.steampowered.com';
-
-// GET /api/games/search?q=query — search games via Steam store
+// ── GET /api/games/search?q= ──────────────────────────────────────────────────
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.trim().length < 2) {
-      return res.status(400).json({ error: 'Search query must be at least 2 characters' });
-    }
-
-    const response = await axios.get('https://store.steampowered.com/api/storesearch/', {
-      params: {
-        term: q,
-        l: 'english',
-        cc: 'US',
-      },
-      timeout: 8000,
-    });
-
-    const items = response.data?.items || [];
-    const results = items.slice(0, 15).map((item) => ({
-      appId: String(item.id),
-      name: item.name,
-      headerImage: `https://cdn.cloudflare.steamstatic.com/steam/apps/${item.id}/header.jpg`,
-      price: item.price,
-      platforms: item.platforms,
-    }));
-
-    res.json(results);
+    if (!q) return res.json({ games: [] });
+    const r = await axios.get(
+      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(q)}&l=english&cc=US`,
+      { timeout: 10000 }
+    );
+    res.json({ games: r.data?.items || [] });
   } catch (err) {
-    console.error('Game search error:', err.message);
-    res.status(500).json({ error: 'Failed to search games' });
+    res.status(500).json({ error: err.message, games: [] });
   }
 });
 
-// GET /api/games/:appId — get game details from Steam Store
+// ── GET /api/games/trending ───────────────────────────────────────────────────
+router.get('/trending', async (req, res) => {
+  try {
+    const topAppIds = await Review.aggregate([
+      { $group: { _id: '$appId', count: { $sum: 1 }, gameName: { $first: '$gameName' }, headerImage: { $first: '$gameHeaderImage' } } },
+      { $sort: { count: -1 } },
+      { $limit: 12 },
+    ]);
+    res.json({ games: topAppIds });
+  } catch (err) {
+    res.status(500).json({ error: err.message, games: [] });
+  }
+});
+
+// ── GET /api/games/:appId ─────────────────────────────────────────────────────
 router.get('/:appId', async (req, res) => {
   try {
     const { appId } = req.params;
-
-    const [storeResponse, reviewData] = await Promise.all([
-      axios.get(`${STEAM_STORE_API}/appdetails`, {
-        params: { appids: appId, cc: 'us', l: 'en' },
-        timeout: 10000,
-      }),
+    const [storeRes, reviewStats] = await Promise.all([
+      axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`, { timeout: 10000 }),
       Review.aggregate([
         { $match: { appId } },
-        {
-          $group: {
-            _id: null,
-            avgRating: { $avg: '$rating' },
-            count: { $sum: 1 },
-          },
-        },
+        { $group: { _id: null, avgRating: { $avg: '$rating' }, count: { $sum: 1 } } },
       ]),
     ]);
 
-    const gameData = storeResponse.data?.[appId];
-    if (!gameData?.success) {
-      return res.status(404).json({ error: 'Game not found on Steam' });
-    }
+    const data = storeRes.data?.[appId];
+    if (!data?.success) return res.status(404).json({ error: 'Game not found' });
 
-    const data = gameData.data;
-    const fraglogStats = reviewData[0] || { avgRating: null, count: 0 };
+    const logCount = await GameLog.countDocuments({ appId });
 
     res.json({
-      appId,
-      name: data.name,
-      shortDescription: data.short_description,
-      headerImage: data.header_image,
-      background: data.background_raw || data.background,
-      developers: data.developers || [],
-      publishers: data.publishers || [],
-      genres: data.genres?.map((g) => g.description) || [],
-      categories: data.categories?.map((c) => c.description) || [],
-      releaseDate: data.release_date?.date || '',
-      isFree: data.is_free,
-      price: data.price_overview
-        ? {
-            currency: data.price_overview.currency,
-            initial: data.price_overview.initial,
-            final: data.price_overview.final,
-            discountPercent: data.price_overview.discount_percent,
-            formatted: data.price_overview.final_formatted,
-          }
-        : null,
-      metacritic: data.metacritic || null,
-      steamReviewSummary: data.reviews || '',
-      screenshots: (data.screenshots || []).slice(0, 6).map((s) => s.path_full),
-      movies: (data.movies || []).slice(0, 2).map((m) => ({
-        id: m.id,
-        name: m.name,
-        thumbnail: m.thumbnail,
-        webm: m.webm?.['480'],
-      })),
+      game: data.data,
       fraglog: {
-        avgRating: fraglogStats.avgRating ? Number(fraglogStats.avgRating.toFixed(2)) : null,
-        reviewCount: fraglogStats.count,
+        avgRating: reviewStats[0]?.avgRating ? +reviewStats[0].avgRating.toFixed(1) : null,
+        reviewCount: reviewStats[0]?.count || 0,
+        logCount,
       },
     });
   } catch (err) {
-    console.error('Game fetch error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch game details' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/games/:appId/reviews — community reviews for a game
+// ── GET /api/games/:appId/reviews ─────────────────────────────────────────────
 router.get('/:appId/reviews', async (req, res) => {
   try {
-    const { appId } = req.params;
-    const { sort = 'recent', page = 1, limit = 10 } = req.query;
-
-    const sortMap = {
-      recent: { createdAt: -1 },
-      top: { likeCount: -1 },
-      rating_high: { rating: -1 },
-      rating_low: { rating: 1 },
-    };
-
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [reviews, total] = await Promise.all([
-      Review.find({ appId })
-        .populate('userId', 'username avatar steamId')
-        .sort(sortMap[sort] || { createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-      Review.countDocuments({ appId }),
-    ]);
-
-    // Add computed fields
-    const enriched = reviews.map((r) => ({
-      ...r,
-      likeCount: r.likes?.length || 0,
-    }));
-
-    res.json({ reviews: enriched, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+    const { sort = 'recent', limit = 10, offset = 0 } = req.query;
+    const sortObj = sort === 'popular' ? { likes: -1 } : { createdAt: -1 };
+    const reviews = await Review.find({ appId: req.params.appId })
+      .sort(sortObj).skip(+offset).limit(+limit);
+    const total = await Review.countDocuments({ appId: req.params.appId });
+    res.json({ reviews, total });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch reviews' });
-  }
-});
-
-// GET /api/games/trending/now — get popular/trending games (top reviewed)
-router.get('/trending/now', async (req, res) => {
-  try {
-    const trending = await Review.aggregate([
-      {
-        $group: {
-          _id: '$appId',
-          gameName: { $first: '$gameName' },
-          gameHeaderImage: { $first: '$gameHeaderImage' },
-          reviewCount: { $sum: 1 },
-          avgRating: { $avg: '$rating' },
-        },
-      },
-      { $sort: { reviewCount: -1 } },
-      { $limit: 12 },
-    ]);
-
-    res.json(trending);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch trending games' });
+    res.status(500).json({ error: err.message });
   }
 });
 

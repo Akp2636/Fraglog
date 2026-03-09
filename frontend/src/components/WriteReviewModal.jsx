@@ -1,183 +1,136 @@
 import { useState } from 'react'
-import { FiX, FiAlertTriangle } from 'react-icons/fi'
+import { FiX } from 'react-icons/fi'
 import { StarRatingInput } from './StarRating'
-import { useAuth } from '../context/AuthContext'
+import { ratingLabel } from '../utils/helpers'
 import api from '../utils/api'
 import toast from 'react-hot-toast'
-import { ratingLabel } from '../utils/helpers'
 
-export default function WriteReviewModal({ game, existingReview, onClose, onSaved }) {
-  const { user } = useAuth()
+export default function WriteReviewModal({ game, existing, onClose, onSave }) {
   const [form, setForm] = useState({
-    rating: existingReview?.rating || 0,
-    title: existingReview?.title || '',
-    body: existingReview?.body || '',
-    containsSpoilers: existingReview?.containsSpoilers || false,
-    playedOn: existingReview?.playedOn || 'PC',
-    hoursAtReview: existingReview?.hoursAtReview || '',
+    title          : existing?.title           || '',
+    body           : existing?.body            || '',
+    rating         : existing?.rating          || null,
+    containsSpoilers: existing?.containsSpoilers || false,
+    playedOn       : existing?.playedOn        || 'PC',
+    hoursAtReview  : existing?.hoursAtReview   || '',
   })
-  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!form.rating) { toast.error('Please set a rating'); return }
-    if (!form.body.trim() || form.body.trim().length < 10) {
-      toast.error('Review must be at least 10 characters')
-      return
-    }
-
-    setLoading(true)
+  const handleSubmit = async () => {
+    if (!form.body.trim()) return toast.error('Review body is required')
+    setSaving(true)
     try {
-      const payload = {
-        appId: game.appId,
-        gameName: game.name,
-        gameHeaderImage: game.headerImage,
-        ...form,
-        hoursAtReview: Number(form.hoursAtReview) || 0,
-      }
-
-      let res
-      if (existingReview) {
-        res = await api.put(`/reviews/${existingReview._id}`, payload)
-        toast.success('Review updated!')
+      let r
+      if (existing) {
+        r = await api.put(`/reviews/${existing._id}`, form)
       } else {
-        res = await api.post('/reviews', payload)
-        toast.success('Review posted!')
+        r = await api.post('/reviews', {
+          ...form,
+          appId          : String(game.steam_appid || game.appid),
+          gameName       : game.name,
+          gameHeaderImage: `https://cdn.akamai.steamstatic.com/steam/apps/${game.steam_appid || game.appid}/header.jpg`,
+        })
       }
-
-      onSaved?.(res.data)
+      toast.success(existing ? 'Review updated!' : 'Review posted!')
+      onSave?.(r.data.review)
       onClose()
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Failed to save review'
-      toast.error(msg)
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to save review')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-bg-card border border-border rounded-xl w-full max-w-lg shadow-2xl animate-fade-in-up">
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '1rem', overflowY: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#16161f', borderRadius: 16, width: '100%', maxWidth: 560,
+        border: '1px solid #2a2a3d', overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border">
+        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #2a2a3d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h2 className="font-display font-bold text-text-primary">
-              {existingReview ? 'Edit Review' : 'Write a Review'}
+            <h2 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 18, color: '#f0f0f8' }}>
+              {existing ? 'Edit Review' : 'Write a Review'}
             </h2>
-            <p className="text-xs text-text-muted font-mono mt-0.5">{game.name}</p>
+            <p style={{ fontSize: 13, color: '#8888aa', fontFamily: 'Karla', marginTop: 2 }}>{game.name}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors p-1"
-          >
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555570', cursor: 'pointer', padding: 6 }}
+            onMouseEnter={e => e.currentTarget.style.color = '#f0f0f8'}
+            onMouseLeave={e => e.currentTarget.style.color = '#555570'}>
             <FiX size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Rating */}
           <div>
-            <label className="label block mb-2">Your Rating *</label>
-            <div className="flex items-center gap-3">
-              <StarRatingInput
-                value={form.rating}
-                onChange={(v) => setForm((f) => ({ ...f, rating: v }))}
-                size={28}
-              />
-              {form.rating > 0 && (
-                <span className="text-xs text-text-muted font-body italic">
-                  {ratingLabel(form.rating)}
-                </span>
-              )}
-            </div>
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Rating {form.rating && <span style={{ color: '#ffd700', textTransform: 'none' }}>· {ratingLabel(form.rating)}</span>}
+            </label>
+            <StarRatingInput value={form.rating} onChange={v => set('rating', v)} size={28} />
           </div>
 
           {/* Title */}
           <div>
-            <label className="label block mb-1.5">Review Title (optional)</label>
-            <input
-              type="text"
-              placeholder="Give your review a title…"
-              maxLength={150}
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className="input"
-            />
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Title (optional)</label>
+            <input className="input" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Give your review a headline..." maxLength={100} />
           </div>
 
           {/* Body */}
           <div>
-            <label className="label block mb-1.5">Your Review *</label>
-            <textarea
-              placeholder="Share your thoughts about this game…"
-              required
-              minLength={10}
-              maxLength={5000}
-              rows={5}
-              value={form.body}
-              onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-              className="textarea"
-            />
-            <p className="text-xs text-text-muted font-mono mt-1 text-right">
-              {form.body.length}/5000
-            </p>
+            <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Review *</label>
+            <textarea className="textarea" rows={5} value={form.body} onChange={e => set('body', e.target.value)}
+              placeholder="What did you think? Share your experience..." maxLength={5000} />
+            <p style={{ fontSize: 11, color: '#555570', fontFamily: 'Karla', marginTop: 4 }}>{form.body.length}/5000</p>
           </div>
 
           {/* Row: Played on + Hours */}
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label className="label block mb-1.5">Played On</label>
-              <select
-                value={form.playedOn}
-                onChange={(e) => setForm((f) => ({ ...f, playedOn: e.target.value }))}
-                className="input"
-              >
-                <option value="PC">PC</option>
-                <option value="Steam Deck">Steam Deck</option>
-                <option value="Remote Play">Remote Play</option>
+              <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Played On</label>
+              <select className="input" value={form.playedOn} onChange={e => set('playedOn', e.target.value)}
+                style={{ cursor: 'pointer' }}>
+                {['PC','Steam Deck','Remote Play','Other'].map(v => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label className="label block mb-1.5">Hours at Review</label>
-              <input
-                type="number"
-                placeholder="0"
-                min="0"
-                max="9999"
-                step="0.5"
-                value={form.hoursAtReview}
-                onChange={(e) => setForm((f) => ({ ...f, hoursAtReview: e.target.value }))}
-                className="input"
-              />
+              <label style={{ display: 'block', fontSize: 12, color: '#555570', fontFamily: 'Karla', fontWeight: 700, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Hours Played</label>
+              <input className="input" type="number" min="0" max="9999" value={form.hoursAtReview}
+                onChange={e => set('hoursAtReview', e.target.value)} placeholder="0" />
             </div>
           </div>
 
-          {/* Spoilers */}
-          <label className="flex items-center gap-2.5 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={form.containsSpoilers}
-              onChange={(e) => setForm((f) => ({ ...f, containsSpoilers: e.target.checked }))}
-              className="w-4 h-4 rounded border-border bg-bg-secondary accent-accent-green"
-            />
-            <div className="flex items-center gap-1.5">
-              <FiAlertTriangle size={13} className="text-accent-gold" />
-              <span className="text-sm text-text-secondary font-body group-hover:text-text-primary transition-colors">
-                Contains spoilers
-              </span>
+          {/* Spoiler toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div onClick={() => set('containsSpoilers', !form.containsSpoilers)} style={{
+              width: 40, height: 22, borderRadius: 11, transition: 'background 0.2s',
+              background: form.containsSpoilers ? '#ffd700' : '#2a2a3d', position: 'relative',
+            }}>
+              <div style={{
+                position: 'absolute', top: 3, left: form.containsSpoilers ? 20 : 3,
+                width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+              }} />
             </div>
+            <span style={{ fontSize: 13, color: '#8888aa', fontFamily: 'Karla' }}>Contains spoilers</span>
           </label>
 
           {/* Submit */}
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="btn-ghost">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading || !form.rating} className="btn-primary">
-              {loading ? 'Saving…' : existingReview ? 'Save Changes' : 'Post Review'}
-            </button>
-          </div>
-        </form>
+          <button onClick={handleSubmit} disabled={saving} style={{
+            background: '#00e676', border: 'none', borderRadius: 10, padding: '13px',
+            fontFamily: 'Syne', fontWeight: 800, fontSize: 15, color: '#0f0f17',
+            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, transition: 'all 0.2s',
+          }}>
+            {saving ? 'Saving...' : existing ? 'Update Review' : 'Post Review'}
+          </button>
+        </div>
       </div>
     </div>
   )

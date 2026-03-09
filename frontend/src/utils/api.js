@@ -1,21 +1,20 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL
+const BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
   : '/api'
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL     : BASE,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
+  headers     : { 'Content-Type': 'application/json' },
 })
 
 api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status !== 401) {
-      console.error('API Error:', err.response?.data?.error || err.message)
-    }
+  r => r,
+  err => {
+    if (err.response?.status !== 401)
+      console.error('API:', err.response?.data?.error || err.message)
     return Promise.reject(err)
   }
 )

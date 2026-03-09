@@ -1,126 +1,61 @@
-# 🎮 Fraglog
+# Fraglog 🎮
 
-> **Letterboxd for Steam gamers.** Track your library, log playthroughs, write reviews, and discover what the community thinks — all powered by your real Steam data.
+> Letterboxd for Steam gamers — track, rate and review your games.
 
-![Fraglog Banner](https://via.placeholder.com/1200x400/08080e/22c55e?text=FRAGLOG)
+## Stack
+- **Frontend**: React 18 + Vite + Tailwind CSS → Vercel
+- **Backend**: Node.js + Express + MongoDB → Render
+- **Auth**: Manual Steam OpenID 2.0 (stateless, no passport-steam)
 
----
+## Setup
 
-## ✨ Features
-
-- 🔐 **Steam OpenID Login** — Sign in with your real Steam account, no extra registration
-- 📚 **Library Sync** — Pulls your entire Steam library automatically
-- 📝 **Game Logs** — Mark games as *Playing*, *Played*, *Want to Play*, or *Dropped*
-- ⭐ **Reviews** — Write reviews with 0–5 star ratings, spoiler tags, and likes
-- 👤 **Profiles** — Public user profiles showing stats, logs, and reviews
-- 🔍 **Discover** — Browse any Steam game by App ID, see community reviews
-- 📊 **Stats** — Total playtime, review count, genre breakdown
-
----
-
-## 🛠 Tech Stack
-
-| Layer      | Technology                          |
-|------------|-------------------------------------|
-| Frontend   | React 18, Vite, Tailwind CSS        |
-| Backend    | Node.js, Express                    |
-| Database   | MongoDB (Mongoose)                  |
-| Auth       | Passport.js + Steam OpenID 2.0      |
-| API        | Steam Web API + Steam Store API     |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js v18+
-- MongoDB Atlas account (free tier works fine)
-- Steam API Key → https://steamcommunity.com/dev/apikey
-
-### 1. Clone the repo
+### 1. Clone
 ```bash
-git clone https://github.com/yourusername/fraglog.git
+git clone https://github.com/yourusername/fraglog
 cd fraglog
-```
-
-### 2. Set up environment variables
-```bash
-cp .env.example backend/.env
-# Now edit backend/.env and fill in:
-# - MONGO_URI
-# - SESSION_SECRET
-# - STEAM_API_KEY
-```
-
-### 3. Install all dependencies
-```bash
 npm run install:all
 ```
 
-### 4. Run in development
+### 2. Backend .env
+Create `backend/.env`:
+```env
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/fraglog
+SESSION_SECRET=any_long_random_string
+STEAM_API_KEY=get_from_steamcommunity.com/dev/apikey
+BACKEND_URL=https://fraglog.onrender.com
+FRONTEND_URL=https://fraglog.vercel.app
+NODE_ENV=production
+```
+
+### 3. Render (Backend)
+- New Web Service → connect GitHub repo
+- Root directory: `backend`
+- Build: `npm install`
+- Start: `node server.js`
+- Add all env vars from step 2 in Render dashboard
+
+### 4. Vercel (Frontend)
+- New Project → connect GitHub repo
+- Root directory: `frontend`
+- Framework: Vite
+- Add env var: `VITE_API_URL=https://fraglog.onrender.com`
+
+### 5. Steam API Key
+- Get key at: https://steamcommunity.com/dev/apikey
+- Domain: your Render URL (e.g. `fraglog.onrender.com`)
+
+### Local dev
 ```bash
+# Uses localhost:5000 for backend, localhost:5173 for frontend
+# Create backend/.env with localhost URLs for local dev
 npm run dev
 ```
 
-- Frontend → http://localhost:5173
-- Backend API → http://localhost:5000
-
----
-
-## 📁 Project Structure
-
-```
-fraglog/
-├── backend/
-│   ├── config/         # DB connection, Passport config
-│   ├── middleware/     # Auth middleware
-│   ├── models/         # Mongoose schemas (User, Review, GameLog)
-│   ├── routes/         # Express route handlers
-│   └── server.js       # Entry point
-├── frontend/
-│   └── src/
-│       ├── components/ # Reusable UI components
-│       ├── context/    # Auth context (React Context API)
-│       ├── hooks/      # Custom hooks
-│       ├── pages/      # Route-level page components
-│       └── utils/      # API helpers, formatters
-└── .env.example
-```
-
----
-
-## 🔑 Steam API Setup
-
-1. Go to https://steamcommunity.com/dev/apikey
-2. Enter your domain (use `localhost` for dev)
-3. Copy the key into `backend/.env` as `STEAM_API_KEY`
-
-> **Note:** Steam OpenID requires your Steam profile to be **public** for the library sync to work.
-
----
-
-## 📦 Available Scripts
-
-| Command             | Description                          |
-|---------------------|--------------------------------------|
-| `npm run dev`       | Run frontend + backend concurrently  |
-| `npm run server`    | Run backend only                     |
-| `npm run client`    | Run frontend only                    |
-| `npm run build`     | Build frontend for production        |
-| `npm run install:all` | Install all dependencies           |
-
----
-
-## 🎓 College Project Notes
-
-This is a college-level project demonstrating:
-- RESTful API design with Express
-- NoSQL data modeling with MongoDB/Mongoose
-- Third-party OAuth authentication (Steam OpenID)
-- External API integration (Steam Web API)
-- React component architecture with Context API
-- Responsive UI design with Tailwind CSS
-
----
-
-*Built with ❤️ and too many hours of gaming*
+## Auth Flow
+1. User clicks Sign In → redirect to `backend/api/auth/steam`
+2. Backend builds Steam OpenID URL and redirects to Steam
+3. Steam authenticates user and redirects to `backend/api/auth/steam/callback`
+4. Backend verifies OpenID assertion (stateless), fetches Steam profile, saves to MongoDB
+5. Backend encodes user as base64 token and redirects to `frontend/auth/callback?token=...`
+6. Frontend AuthCallback decodes token, saves to localStorage, redirects to profile
+7. On every page load, AuthContext reads localStorage → user stays logged in

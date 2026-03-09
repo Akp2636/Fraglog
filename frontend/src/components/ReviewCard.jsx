@@ -1,154 +1,129 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FiHeart, FiAlertTriangle, FiClock } from 'react-icons/fi'
+import { FiHeart, FiAlertTriangle, FiEdit2, FiTrash2 } from 'react-icons/fi'
 import { StarRatingDisplay } from './StarRating'
-import { formatDate, formatPlaytime, truncate } from '../utils/helpers'
+import { formatDate, truncate } from '../utils/helpers'
 import { useAuth } from '../context/AuthContext'
 import api from '../utils/api'
 import toast from 'react-hot-toast'
 
-export default function ReviewCard({ review, showGame = true, onUpdate }) {
-  const { user } = useAuth()
-  const [liked, setLiked] = useState(review.likes?.some((id) => id === user?._id || id._id === user?._id))
-  const [likeCount, setLikeCount] = useState(review.likeCount || review.likes?.length || 0)
-  const [spoilerRevealed, setSpoilerRevealed] = useState(false)
-  const [liking, setLiking] = useState(false)
+export default function ReviewCard({ review, onEdit, onDelete, showGame = true }) {
+  const { user }  = useAuth()
+  const [spoiler, setSpoiler] = useState(false)
+  const [liked,   setLiked]   = useState(review.likes?.includes(user?.steamId))
+  const [likes,   setLikes]   = useState(review.likes?.length || 0)
+  const isOwner   = user?.steamId === review.steamId
 
   const handleLike = async () => {
-    if (!user) { toast.error('Sign in to like reviews'); return }
-    if (liking) return
-    setLiking(true)
+    if (!user) return toast.error('Sign in to like reviews')
     try {
-      const res = await api.post(`/reviews/${review._id}/like`)
-      setLiked(res.data.liked)
-      setLikeCount(res.data.likeCount)
-    } catch {
-      toast.error('Failed to like review')
-    } finally {
-      setLiking(false)
-    }
+      const r = await api.post(`/reviews/${review._id}/like`)
+      setLiked(r.data.liked)
+      setLikes(r.data.likeCount)
+    } catch {}
   }
 
-  const author = review.userId || {}
-  const isOwn = user?._id === (author._id || author)
+  const author = review.author
 
   return (
-    <div className="card p-4 space-y-3 hover:border-border-light transition-colors group">
+    <div style={{
+      background: '#1c1c28', borderRadius: 12, padding: '1.25rem',
+      border: '1px solid #2a2a3d', display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
       {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {author.avatar && (
-            <Link to={`/profile/${author.steamId}`}>
-              <img
-                src={author.avatar}
-                alt={author.username}
-                className="w-8 h-8 rounded-full border border-border flex-shrink-0 hover:border-accent-green transition-colors"
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {author?.avatar ? (
+            <Link to={`/profile/${review.steamId}`}>
+              <img src={author.avatar} alt={author.username}
+                style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #2a2a3d' }}
               />
             </Link>
-          )}
-          <div className="min-w-0">
-            <Link
-              to={`/profile/${author.steamId}`}
-              className="text-sm font-body font-medium text-text-primary hover:text-accent-green transition-colors block truncate"
-            >
-              {author.username || 'Unknown'}
-            </Link>
-            <div className="flex items-center gap-2 flex-wrap">
-              <StarRatingDisplay value={review.rating} size={12} />
-              <span className="text-xs font-mono text-text-muted">{formatDate(review.createdAt)}</span>
-              {review.playedOn && review.playedOn !== 'PC' && (
-                <span className="text-xs font-mono text-text-muted bg-bg-elevated px-1.5 py-0.5 rounded">
-                  {review.playedOn}
-                </span>
-              )}
+          ) : (
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#2a2a3d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+              🎮
             </div>
+          )}
+          <div>
+            <Link to={`/profile/${review.steamId}`}
+              style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 14, color: '#f0f0f8', textDecoration: 'none' }}>
+              {author?.username || review.steamId}
+            </Link>
+            <p style={{ fontSize: 11, color: '#555570', fontFamily: 'Karla', marginTop: 1 }}>
+              {formatDate(review.createdAt)}
+              {review.playedOn && ` · ${review.playedOn}`}
+              {review.hoursAtReview > 0 && ` · ${review.hoursAtReview}h`}
+            </p>
           </div>
         </div>
-
-        {showGame && review.gameName && (
-          <Link
-            to={`/game/${review.appId}`}
-            className="flex-shrink-0 group/game"
-          >
-            <img
-              src={review.gameHeaderImage || `https://cdn.cloudflare.steamstatic.com/steam/apps/${review.appId}/header.jpg`}
-              alt={review.gameName}
-              className="h-10 w-auto rounded border border-border group-hover/game:border-accent-green transition-colors"
-              onError={(e) => { e.target.style.display = 'none' }}
-            />
-          </Link>
-        )}
+        {review.rating && <StarRatingDisplay value={review.rating} size={13} />}
       </div>
 
-      {/* Game name link when showing full review */}
-      {showGame && review.gameName && (
-        <Link
-          to={`/game/${review.appId}`}
-          className="text-xs font-mono text-text-muted hover:text-accent-green transition-colors uppercase tracking-wider"
-        >
-          {review.gameName}
+      {/* Game name */}
+      {showGame && (
+        <Link to={`/game/${review.appId}`} style={{ textDecoration: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#16161f', borderRadius: 8, padding: '8px 12px' }}>
+            <img
+              src={`https://cdn.akamai.steamstatic.com/steam/apps/${review.appId}/header.jpg`}
+              style={{ width: 48, height: 22, objectFit: 'cover', borderRadius: 4 }}
+              onError={e => e.target.style.display = 'none'}
+            />
+            <span style={{ fontSize: 13, fontFamily: 'Syne', fontWeight: 600, color: '#40bcf4' }}>
+              {review.gameName}
+            </span>
+          </div>
         </Link>
       )}
 
-      {/* Review title */}
+      {/* Title */}
       {review.title && (
-        <h3 className="font-display font-semibold text-text-primary text-sm leading-snug">
+        <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 15, color: '#f0f0f8' }}>
           {review.title}
-        </h3>
+        </p>
       )}
 
-      {/* Spoiler warning */}
-      {review.containsSpoilers && !spoilerRevealed ? (
-        <div
-          className="flex items-center gap-2 p-3 rounded bg-accent-gold/5 border border-accent-gold/20 cursor-pointer hover:bg-accent-gold/10 transition-colors"
-          onClick={() => setSpoilerRevealed(true)}
-        >
-          <FiAlertTriangle className="text-accent-gold flex-shrink-0" size={14} />
-          <p className="text-xs text-accent-gold font-body">
-            This review contains spoilers.{' '}
-            <span className="underline">Click to reveal</span>
-          </p>
+      {/* Body */}
+      {review.containsSpoilers && !spoiler ? (
+        <div style={{ background: '#1a1a0f', border: '1px solid #555520', borderRadius: 8, padding: '0.75rem', cursor: 'pointer' }}
+          onClick={() => setSpoiler(true)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ffd700', fontSize: 13 }}>
+            <FiAlertTriangle size={13} />
+            <span style={{ fontFamily: 'Karla', fontWeight: 700 }}>Contains spoilers — click to reveal</span>
+          </div>
         </div>
       ) : (
-        <p className="text-sm text-text-secondary font-body leading-relaxed">
-          {truncate(review.body, 280)}
-          {review.body?.length > 280 && (
-            <Link to={`/game/${review.appId}`} className="ml-1 text-accent-green hover:underline text-xs">
-              read more
-            </Link>
-          )}
+        <p style={{ fontSize: 14, color: '#ccccdd', lineHeight: 1.65, fontFamily: 'Karla' }}>
+          {review.body}
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleLike}
-            disabled={liking}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${
-              liked ? 'text-accent-red' : 'text-text-muted hover:text-accent-red'
-            }`}
-          >
-            <FiHeart className={liked ? 'fill-current' : ''} size={13} />
-            <span className="font-mono">{likeCount}</span>
-          </button>
-
-          {review.hoursAtReview > 0 && (
-            <span className="flex items-center gap-1 text-xs text-text-muted font-mono">
-              <FiClock size={11} />
-              {formatPlaytime(review.hoursAtReview * 60)}
-            </span>
-          )}
-        </div>
-
-        {isOwn && onUpdate && (
-          <button
-            onClick={() => onUpdate(review)}
-            className="text-xs text-text-muted hover:text-accent-green transition-colors font-mono"
-          >
-            edit
-          </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={handleLike} style={{
+          display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none',
+          cursor: 'pointer', color: liked ? '#ff4757' : '#555570',
+          fontSize: 13, fontFamily: 'Karla', transition: 'color 0.15s', padding: 0,
+        }}>
+          <FiHeart size={14} style={{ fill: liked ? '#ff4757' : 'transparent' }} />
+          {likes > 0 && likes}
+        </button>
+        {isOwner && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onEdit && (
+              <button onClick={() => onEdit(review)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555570', padding: 4, borderRadius: 4, transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#40bcf4'}
+                onMouseLeave={e => e.currentTarget.style.color = '#555570'}>
+                <FiEdit2 size={13} />
+              </button>
+            )}
+            {onDelete && (
+              <button onClick={() => onDelete(review._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#555570', padding: 4, borderRadius: 4, transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#ff4757'}
+                onMouseLeave={e => e.currentTarget.style.color = '#555570'}>
+                <FiTrash2 size={13} />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

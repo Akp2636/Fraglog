@@ -1,7 +1,6 @@
 {
   "name": "fraglog",
   "version": "1.0.0",
-  "description": "Steam-only gamer tracking + review platform",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd backend && npm run dev",

@@ -2,63 +2,45 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import api from '../utils/api'
 
 const AuthContext = createContext(null)
-const STORAGE_KEY = 'fraglog_user'
+const KEY = 'fraglog_user'
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUserState] = useState(null)
+  const [user, _setUser]  = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // Always sync to localStorage
   const setUser = (u) => {
-    if (u) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(u))
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
-    }
-    setUserState(u)
+    if (u) localStorage.setItem(KEY, JSON.stringify(u))
+    else    localStorage.removeItem(KEY)
+    _setUser(u)
   }
 
   useEffect(() => {
-    // Read localStorage immediately on every mount/page load
-    const cached = localStorage.getItem(STORAGE_KEY)
-    console.log('🔍 AuthContext init — localStorage:', cached ? 'found user' : 'empty')
-
+    const cached = localStorage.getItem(KEY)
     if (cached) {
       try {
-        const parsed = JSON.parse(cached)
-        console.log('✅ Loaded user from localStorage:', parsed.username)
-        setUserState(parsed)
+        _setUser(JSON.parse(cached))
         setLoading(false)
         return
       } catch {
-        localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(KEY)
       }
     }
-
-    // No localStorage — try session cookie (localhost fallback)
+    // No localStorage — try session (works on localhost)
     api.get('/auth/me')
-      .then((res) => {
-        if (res.data.authenticated) {
-          console.log('✅ Loaded user from session:', res.data.user.username)
-          setUser(res.data.user)
-        } else {
-          setUserState(null)
-        }
-      })
-      .catch(() => setUserState(null))
+      .then(r => { if (r.data.authenticated) setUser(r.data.user) })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   const logout = async () => {
     try { await api.get('/auth/logout') } catch {}
     setUser(null)
-    console.log('👋 Logged out, localStorage cleared')
   }
 
   const loginWithSteam = () => {
-    const url = import.meta.env.VITE_API_URL
-      ? `${import.meta.env.VITE_API_URL}/api/auth/steam`
-      : 'http://localhost:5000/api/auth/steam'
-    window.location.href = url
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    window.location.href = `${base}/api/auth/steam`
   }
 
   return (

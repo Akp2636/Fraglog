@@ -1,53 +1,53 @@
 import { Link } from 'react-router-dom'
-import { formatPlaytime } from '../utils/helpers'
 import { StarRatingDisplay } from './StarRating'
+import { STATUS_LABELS, STATUS_COLORS, STATUS_ICONS, formatPlaytime } from '../utils/helpers'
 
-export default function GameCard({ game, showPlaytime = true, compact = false }) {
-  const { appId, name, headerImage, playtimeMinutes, rating } = game
-
-  if (compact) {
-    return (
-      <Link to={`/game/${appId}`} className="group flex items-center gap-3 p-2 rounded hover:bg-bg-elevated transition-colors">
-        <img
-          src={headerImage || `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`}
-          alt={name}
-          className="w-16 h-9 object-cover rounded flex-shrink-0 bg-bg-elevated"
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-        <div className="min-w-0">
-          <p className="text-sm text-text-primary font-body font-medium truncate group-hover:text-accent-green transition-colors">
-            {name}
-          </p>
-          {showPlaytime && playtimeMinutes !== undefined && (
-            <p className="text-xs text-text-muted font-mono">{formatPlaytime(playtimeMinutes)}</p>
-          )}
-        </div>
-      </Link>
-    )
-  }
+export default function GameCard({ game, log, showPlaytime = true }) {
+  const headerImg = game.headerImage ||
+    `https://cdn.akamai.steamstatic.com/steam/apps/${game.appid}/header.jpg`
 
   return (
-    <Link to={`/game/${appId}`} className="group card hover:border-border-light transition-all duration-200">
-      <div className="relative overflow-hidden aspect-[460/215]">
-        <img
-          src={headerImage || `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`}
-          alt={name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-bg-elevated"
-          onError={(e) => {
-            e.target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-bg-elevated text-text-muted text-xs font-mono">No Image</div>`
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-bg-card/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
-      <div className="p-3">
-        <h3 className="text-sm font-body font-medium text-text-primary truncate group-hover:text-accent-green transition-colors">
-          {name}
-        </h3>
-        <div className="flex items-center justify-between mt-1.5">
-          {showPlaytime && playtimeMinutes !== undefined && (
-            <span className="text-xs font-mono text-text-muted">{formatPlaytime(playtimeMinutes)}</span>
+    <Link to={`/game/${game.appid}`} style={{ textDecoration: 'none' }}>
+      <div className="game-card-hover" style={{
+        background: '#1c1c28', borderRadius: 12, overflow: 'hidden',
+        border: '1px solid #2a2a3d', cursor: 'pointer',
+      }}>
+        {/* Cover */}
+        <div style={{ position: 'relative', paddingTop: '46.7%', background: '#0f0f17' }}>
+          <img src={headerImg} alt={game.name}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={e => { e.target.style.display = 'none' }}
+          />
+          {log && (
+            <div style={{
+              position: 'absolute', top: 8, left: 8,
+              background: 'rgba(0,0,0,0.8)', borderRadius: 6,
+              padding: '2px 8px', fontSize: 11, fontFamily: 'Karla', fontWeight: 700,
+              color: STATUS_COLORS[log.status] || '#888',
+              border: `1px solid ${STATUS_COLORS[log.status] || '#888'}33`,
+            }}>
+              {STATUS_ICONS[log.status]} {STATUS_LABELS[log.status]}
+            </div>
           )}
-          {rating && <StarRatingDisplay value={rating} size={12} />}
+        </div>
+
+        {/* Info */}
+        <div style={{ padding: '0.75rem' }}>
+          <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: '#f0f0f8', marginBottom: 4,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {game.name}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {log?.rating
+              ? <StarRatingDisplay value={log.rating} size={12} />
+              : <span style={{ fontSize: 11, color: '#555570', fontFamily: 'Karla' }}>Not rated</span>
+            }
+            {showPlaytime && game.playtime_forever > 0 && (
+              <span style={{ fontSize: 11, color: '#555570', fontFamily: 'JetBrains Mono' }}>
+                {formatPlaytime(game.playtime_forever)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </Link>
