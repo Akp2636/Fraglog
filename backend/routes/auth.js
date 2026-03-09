@@ -43,73 +43,97 @@ router.get('/steam/callback', async (req, res) => {
   try {
     const query = req.query;
 
-    // Must be positive assertion
     if (query['openid.mode'] !== 'id_res') {
-      console.error('❌ OpenID mode is not id_res:', query['openid.mode']);
       return res.redirect(`${FRONTEND}/?error=auth_cancelled`);
     }
 
-    // Verify with Steam
+    // Step 1: Verify with Steam
+    console.log('🔄 Step 1: Verifying with Steam...');
     const verifyParams = new URLSearchParams();
     Object.entries(query).forEach(([k, v]) => verifyParams.append(k, v));
     verifyParams.set('openid.mode', 'check_authentication');
 
-    const verifyRes = await axios.post(STEAM_OPENID, verifyParams.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    let verifyRes;
+    try {
+      verifyRes = await axios.post(STEAM_OPENID, verifyParams.toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 10000,
+      });
+    } catch (verifyErr) {
+      console.error('❌ Steam verify POST failed:', verifyErr.message);
+      return res.redirect(`${FRONTEND}/?error=verify_network_error`);
+    }
 
     if (!verifyRes.data.includes('is_valid:true')) {
-      console.error('❌ Steam OpenID verification failed');
+      console.error('❌ Steam said not valid:', verifyRes.data);
       return res.redirect(`${FRONTEND}/?error=verify_failed`);
     }
 
-    // Extract Steam ID
+    // Step 2: Extract Steam ID
+    console.log('🔄 Step 2: Extracting Steam ID...');
     const claimedId = query['openid.claimed_id'] || '';
     const steamId   = claimedId.replace('https://steamcommunity.com/openid/id/', '');
 
     if (!steamId || !/^\d+$/.test(steamId)) {
-      console.error('❌ Invalid Steam ID:', claimedId);
+      console.error('❌ Bad steamId:', claimedId);
       return res.redirect(`${FRONTEND}/?error=invalid_id`);
     }
+    console.log('✅ Steam ID:', steamId);
 
-    console.log('✅ Steam ID verified:', steamId);
-
-    // Fetch player profile from Steam API
-    const profileRes = await axios.get(
-      'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/',
-      { params: { key: STEAM_KEY, steamids: steamId } }
-    );
-
-    const player = profileRes.data?.response?.players?.[0];
+    // Step 3: Fetch Steam profile
+    console.log('🔄 Step 3: Fetching Steam profile...');
+    let player;
+    try {
+      const profileRes = await axios.get(
+        'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/',
+        {
+          params : { key: STEAM_KEY, steamids: steamId },
+          timeout: 10000,
+        }
+      );
+      player = profileRes.data?.response?.players?.[0];
+    } catch (profileErr) {
+      console.error('❌ Steam API call failed:', profileErr.message);
+      return res.redirect(`${FRONTEND}/?error=steam_api_error`);
+    }
 
     if (!player) {
-      console.error('❌ No Steam player found for:', steamId);
+      console.error('❌ No player in Steam response for:', steamId);
       return res.redirect(`${FRONTEND}/?error=no_profile`);
     }
+    console.log('✅ Got Steam profile:', player.personaname);
 
-    // Find or create user in MongoDB
-    let user = await User.findOne({ steamId });
+    // Step 4: Save to MongoDB
+    console.log('🔄 Step 4: Saving to MongoDB...');
+    let user;
+    try {
+      user = await User.findOne({ steamId });
 
-    const userData = {
-      steamId,
-      username    : player.personaname       || 'Unknown',
-      avatar      : player.avatarfull        || player.avatar || '',
-      profileUrl  : player.profileurl        || '',
-      realName    : player.realname          || '',
-      countryCode : player.loccountrycode    || '',
-      lastLogin   : new Date(),
-    };
+      const userData = {
+        steamId,
+        username    : player.personaname    || 'Unknown',
+        avatar      : player.avatarfull     || player.avatar || '',
+        profileUrl  : player.profileurl     || '',
+        realName    : player.realname       || '',
+        countryCode : player.loccountrycode || '',
+        lastLogin   : new Date(),
+      };
 
-    if (user) {
-      Object.assign(user, userData);
-      await user.save();
-      console.log(`✅ Returning user: ${user.username}`);
-    } else {
-      user = await User.create(userData);
-      console.log(`✅ New user: ${user.username} (${steamId})`);
+      if (user) {
+        Object.assign(user, userData);
+        await user.save();
+        console.log('✅ Updated user:', user.username);
+      } else {
+        user = await User.create(userData);
+        console.log('✅ Created user:', user.username);
+      }
+    } catch (dbErr) {
+      console.error('❌ MongoDB error:', dbErr.message);
+      return res.redirect(`${FRONTEND}/?error=db_error`);
     }
 
-    // Encode user → send to frontend in URL
+    // Step 5: Encode and redirect
+    console.log('🔄 Step 5: Redirecting to frontend...');
     const encoded = Buffer.from(JSON.stringify({
       _id          : user._id,
       steamId      : user.steamId,
@@ -120,10 +144,11 @@ router.get('/steam/callback', async (req, res) => {
       favoriteGames: user.favoriteGames || [],
     })).toString('base64');
 
+    console.log('✅ All done! Redirecting to frontend callback');
     return res.redirect(`${FRONTEND}/auth/callback?data=${encoded}`);
 
   } catch (err) {
-    console.error('❌ Auth callback error:', err.message);
+    console.error('❌ UNEXPECTED error in callback:', err.message, err.stack);
     return res.redirect(`${FRONTEND}/?error=server_error`);
   }
 });
