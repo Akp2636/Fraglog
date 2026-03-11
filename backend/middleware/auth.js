@@ -1,30 +1,42 @@
-const jwt = require('jsonwebtoken')
+// Uses Node built-in crypto — NO new npm packages needed
+const crypto = require('crypto')
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || 'fraglog_dev_secret'
+const SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || 'fraglog_dev_secret_change_me'
 
-const signToken = (user) => jwt.sign(
-  { _id: user._id, steamId: user.steamId, username: user.username, avatar: user.avatar },
-  JWT_SECRET,
-  { expiresIn: '30d' }
-)
+// ── Sign token (base64url data + HMAC signature) ──────────────────────────────
+const signToken = (payload) => {
+  const data = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString('base64url')
+  const sig  = crypto.createHmac('sha256', SECRET).update(data).digest('base64url')
+  return `${data}.${sig}`
+}
 
+// ── Verify token ──────────────────────────────────────────────────────────────
+const verifyToken = (token) => {
+  const [data, sig] = (token || '').split('.')
+  if (!data || !sig) throw new Error('Malformed token')
+  const expected = crypto.createHmac('sha256', SECRET).update(data).digest('base64url')
+  if (sig !== expected) throw new Error('Invalid signature')
+  return JSON.parse(Buffer.from(data, 'base64url').toString())
+}
+
+// ── Middleware ─────────────────────────────────────────────────────────────────
 const requireAuth = (req, res, next) => {
   try {
-    // Try Authorization: Bearer <token>  (cross-domain production)
+    // 1. Authorization: Bearer <token>  — works cross-domain (Vercel → Render)
     const header = req.headers['authorization']
     if (header?.startsWith('Bearer ')) {
-      req.user = jwt.verify(header.slice(7), JWT_SECRET)
+      req.user = verifyToken(header.slice(7))
       return next()
     }
-    // Fallback: session (localhost dev)
+    // 2. Session fallback — works on localhost
     if (req.session?.user) {
       req.user = req.session.user
       return next()
     }
     return res.status(401).json({ error: 'Not authenticated' })
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' })
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' })
   }
 }
 
-module.exports = { signToken, requireAuth }
+module.exports = { signToken, verifyToken, requireAuth }
