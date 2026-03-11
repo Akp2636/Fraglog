@@ -5,9 +5,19 @@ const BASE = import.meta.env.VITE_API_URL
   : '/api'
 
 const api = axios.create({
-  baseURL     : BASE,
+  baseURL: BASE,
   withCredentials: true,
-  headers     : { 'Content-Type': 'application/json' },
+  headers: { 'Content-Type': 'application/json' },
+})
+
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('fraglog_token')
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+
+  return config
 })
 
 api.interceptors.response.use(
