@@ -210,7 +210,7 @@ export default function Profile() {
         </div>
 
         {/* ── Tabs ── */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #1a1a1a', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #1a1a1a', marginBottom: '2rem' }}>
           {[['reviews','Reviews'], ['games','Game Log'], ['stats','Stats']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               background: 'none', border: 'none', cursor: 'pointer',
@@ -224,6 +224,34 @@ export default function Profile() {
               {label}
             </button>
           ))}
+          {/* Refresh button */}
+          <button
+            onClick={() => {
+              setLoading(true)
+              Promise.all([
+                api.get(`/users/${steamId}`),
+                api.get(`/users/${steamId}/reviews`),
+                api.get(`/users/${steamId}/logs`),
+              ]).then(([pRes, rRes, lRes]) => {
+                setProfile(pRes.data.user)
+                setStats(pRes.data.stats)
+                setReviews(rRes.data.reviews || [])
+                setLogs(lRes.data.logs || [])
+              }).finally(() => setLoading(false))
+            }}
+            style={{
+              marginLeft: 'auto', background: 'none', border: 'none',
+              cursor: 'pointer', color: '#444', padding: '8px 12px',
+              fontFamily: '"Barlow Condensed"', fontWeight: 700,
+              fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+              transition: 'color 0.15s', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#b9ff57'}
+            onMouseLeave={e => e.currentTarget.style.color = '#444'}
+            title="Refresh stats"
+          >
+            ↻ Refresh
+          </button>
         </div>
 
         {/* ── Reviews tab ── */}
@@ -290,54 +318,57 @@ export default function Profile() {
 
         {/* ── Stats tab ── */}
         {tab === 'stats' && stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 1, background: '#111' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#111' }}>
+
+            {/* Quick stats — 4 boxes in a row */}
+            <div style={{ background: '#0d0d0d', padding: '1.5rem 2rem' }}>
+              <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: '1.25rem' }}>
+                Quick Stats
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 1, background: '#1a1a1a' }}>
+                {[
+                  ['Games Logged',  stats.logCount    ?? 0,  '#b9ff57'],
+                  ['Reviews',       stats.reviewCount ?? 0,  '#40bcf4'],
+                  ['Avg Rating',    stats.avgRating   ? `${stats.avgRating}★` : '—', '#ffd700'],
+                  ['Completed',     stats.statusCounts?.completed ?? 0, '#b9ff57'],
+                ].map(([label, val, color]) => (
+                  <div key={label} style={{ background: '#0d0d0d', padding: '1.25rem', textAlign: 'center' }}>
+                    <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic', fontSize: 40, color, lineHeight: 1, marginBottom: 4 }}>
+                      {val}
+                    </p>
+                    <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#444' }}>
+                      {label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Status breakdown */}
-            <div style={{ background: '#0d0d0d', padding: '2rem' }}>
-              <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: '1.5rem' }}>
+            <div style={{ background: '#0d0d0d', padding: '1.5rem 2rem' }}>
+              <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: '1.25rem' }}>
                 Status Breakdown
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => {
                   const count = stats.statusCounts?.[key] || 0
                   const pct   = stats.logCount ? Math.round(count / stats.logCount * 100) : 0
                   return (
                     <div key={key}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase', color: STATUS_COLORS[key] }}>
-                          {STATUS_ICONS[key]} {label}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', color: STATUS_COLORS[key] }}>
+                          {STATUS_ICONS[key]}&nbsp;{label}
                         </span>
-                        <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontSize: 16, color: '#fff' }}>{count}</span>
+                        <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontSize: 20, color: '#fff' }}>
+                          {count}
+                        </span>
                       </div>
-                      <div style={{ height: 2, background: '#1a1a1a' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: STATUS_COLORS[key], transition: 'width 0.6s ease' }} />
+                      <div style={{ height: 3, background: '#1a1a1a', borderRadius: 2 }}>
+                        <div style={{ height: '100%', borderRadius: 2, width: `${pct}%`, background: STATUS_COLORS[key], transition: 'width 0.6s ease' }} />
                       </div>
                     </div>
                   )
                 })}
-              </div>
-            </div>
-
-            {/* Quick stats */}
-            <div style={{ background: '#0d0d0d', padding: '2rem' }}>
-              <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: '1.5rem' }}>
-                Quick Stats
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: '1px solid #1a1a1a' }}>
-                {[
-                  ['Total Logged',  stats.logCount    || 0,   '#b9ff57'],
-                  ['Total Reviews', stats.reviewCount || 0,   '#40bcf4'],
-                  ['Avg Rating',    stats.avgRating ? `${stats.avgRating} / 5` : 'N/A', '#ffd700'],
-                  ['Completed',     stats.statusCounts?.completed || 0, '#b9ff57'],
-                ].map(([label, val, color]) => (
-                  <div key={label} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '14px 16px', borderBottom: '1px solid #1a1a1a',
-                  }}>
-                    <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 13, letterSpacing: 1, textTransform: 'uppercase', color: '#444' }}>{label}</span>
-                    <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontSize: 22, color }}>{val}</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
