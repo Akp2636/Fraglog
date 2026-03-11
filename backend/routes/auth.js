@@ -105,7 +105,6 @@ router.get('/steam/callback', async (req, res) => {
     }
 
     // ── Sign a JWT ────────────────────────────────────────────────────────────
-    const jwtToken = signToken(user)
 
     // ── Also set session (for localhost fallback) ─────────────────────────────
     req.session.user = {
@@ -127,8 +126,7 @@ router.get('/steam/callback', async (req, res) => {
     })).toString('base64')
 
     console.log('✅ Redirecting to frontend')
-    return res.redirect(`${FRONTEND}/auth/callback?token=${encodeURIComponent(jwtToken)}&user=${userData}`)
-
+    return res.redirect(`${FRONTEND}`)
   } catch (err) {
     console.error('❌ Callback error:', err.message)
     return res.redirect(`${FRONTEND}/?error=server_error`)
