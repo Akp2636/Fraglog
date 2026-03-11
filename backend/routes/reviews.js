@@ -1,8 +1,14 @@
-const express  = require('express')
-const router   = express.Router()
-const Review   = require('../models/Review')
-const User     = require('../models/User')
+const express   = require('express')
+const mongoose  = require('mongoose')
+const router    = express.Router()
+const Review    = require('../models/Review')
+const User      = require('../models/User')
 const { requireAuth } = require('../middleware/auth')
+
+const toObjId = (id) => {
+  try { return new mongoose.Types.ObjectId(id) }
+  catch { return id }
+}
 
 // GET /api/reviews/feed
 router.get('/feed', async (req, res) => {
@@ -21,16 +27,20 @@ router.get('/feed', async (req, res) => {
 // POST /api/reviews
 router.post('/', requireAuth, async (req, res) => {
   try {
+    const userId  = toObjId(req.user._id)
+    const steamId = req.user.steamId
     const { appId, gameName, gameHeaderImage, title, body, rating, containsSpoilers, playedOn, hoursAtReview } = req.body
-    const { _id, steamId } = req.user
-    const existing = await Review.findOne({ userId: _id, appId })
+    const existing = await Review.findOne({ userId, appId })
     if (existing) return res.status(400).json({ error: 'You already reviewed this game. Edit it instead.' })
     const review = await Review.create({
-      userId: _id, steamId, appId, gameName, gameHeaderImage,
+      userId, steamId, appId, gameName, gameHeaderImage,
       title, body, rating, containsSpoilers, playedOn, hoursAtReview,
     })
     res.status(201).json({ review })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (err) {
+    console.error('Review create error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // PUT /api/reviews/:id
