@@ -1,26 +1,52 @@
-const express  = require('express')
-const axios    = require('axios')
-const router   = express.Router()
-const User     = require('../models/User')
-const Review   = require('../models/Review')
-const GameLog  = require('../models/GameLog')
+const express   = require('express')
+const mongoose  = require('mongoose')
+const axios     = require('axios')
+const router    = express.Router()
+const User      = require('../models/User')
+const Review    = require('../models/Review')
+const GameLog   = require('../models/GameLog')
 const { requireAuth } = require('../middleware/auth')
 
 const STEAM_KEY = process.env.STEAM_API_KEY
+
+const toObjId = (id) => {
+  try { return new mongoose.Types.ObjectId(id) } catch { return null }
+}
+
+// Helper: find logs for a steamId — queries by BOTH steamId and userId (robust)
+async function getLogsForUser(steamId) {
+  // First try steamId (fastest)
+  let logs = await GameLog.find({ steamId }).sort({ updatedAt: -1 })
+  if (logs.length > 0) return logs
+  // Fallback: look up user._id and query by userId
+  const user = await User.findOne({ steamId }).select('_id')
+  if (user) {
+    logs = await GameLog.find({ userId: user._id }).sort({ updatedAt: -1 })
+  }
+  return logs
+}
 
 // GET /api/users/:steamId
 router.get('/:steamId', async (req, res) => {
   try {
     const user = await User.findOne({ steamId: req.params.steamId }).select('-__v')
     if (!user) return res.status(404).json({ error: 'User not found' })
-    const [reviewCount, logCount, logsWithStatus] = await Promise.all([
+
+    const [reviewCount, allLogs] = await Promise.all([
       Review.countDocuments({ steamId: req.params.steamId }),
-      GameLog.countDocuments({ steamId: req.params.steamId }),
-      GameLog.find({ steamId: req.params.steamId }).select('status rating'),
+      getLogsForUser(req.params.steamId),
     ])
-    const avgRating = logsWithStatus.filter(l => l.rating).reduce((sum, l, _, arr) => sum + l.rating / arr.length, 0)
-    const statusCounts = logsWithStatus.reduce((acc, l) => { acc[l.status] = (acc[l.status] || 0) + 1; return acc }, {})
-    res.json({ user, stats: { reviewCount, logCount, avgRating: avgRating ? +avgRating.toFixed(1) : null, statusCounts } })
+
+    const logCount      = allLogs.length
+    const ratedLogs     = allLogs.filter(l => l.rating)
+    const avgRating     = ratedLogs.length
+      ? +(ratedLogs.reduce((s, l) => s + l.rating, 0) / ratedLogs.length).toFixed(1)
+      : null
+    const statusCounts  = allLogs.reduce((acc, l) => {
+      acc[l.status] = (acc[l.status] || 0) + 1; return acc
+    }, {})
+
+    res.json({ user, stats: { reviewCount, logCount, avgRating, statusCounts } })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -36,19 +62,22 @@ router.get('/:steamId/library', async (req, res) => {
     if (sort === 'playtime')    games.sort((a, b) => b.playtime_forever - a.playtime_forever)
     else if (sort === 'recent') games.sort((a, b) => (b.rtime_last_played || 0) - (a.rtime_last_played || 0))
     else if (sort === 'name')   games.sort((a, b) => a.name.localeCompare(b.name))
-    const total = games.length
-    games = games.slice(+offset, +offset + +limit)
+    const total  = games.length
+    games        = games.slice(+offset, +offset + +limit)
     const appIds = games.map(g => String(g.appid))
-    const logs   = await GameLog.find({ steamId: req.params.steamId, appId: { $in: appIds } })
-    const logMap = {}
-    logs.forEach(l => { logMap[l.appId] = l })
+
+    // Get logs by BOTH steamId and userId
+    const allLogs = await getLogsForUser(req.params.steamId)
+    const logMap  = {}
+    allLogs.forEach(l => { if (appIds.includes(l.appId)) logMap[l.appId] = l })
+
     const enriched = games.map(g => ({
-      appid           : g.appid, name: g.name,
-      playtime_forever: g.playtime_forever,
-      playtime_2weeks : g.playtime_2weeks || 0,
+      appid            : g.appid,
+      name             : g.name,
+      playtime_forever : g.playtime_forever,
+      playtime_2weeks  : g.playtime_2weeks || 0,
       rtime_last_played: g.rtime_last_played,
-      headerImage     : `https://cdn.akamai.steamstatic.com/steam/apps/${g.appid}/header.jpg`,
-      log             : logMap[String(g.appid)] || null,
+      log              : logMap[String(g.appid)] || null,
     }))
     res.json({ games: enriched, total })
   } catch (err) {
@@ -68,10 +97,8 @@ router.get('/:steamId/reviews', async (req, res) => {
 // GET /api/users/:steamId/logs
 router.get('/:steamId/logs', async (req, res) => {
   try {
-    const { status } = req.query
-    const q = { steamId: req.params.steamId }
-    if (status) q.status = status
-    const logs = await GameLog.find(q).sort({ updatedAt: -1 })
+    let logs = await getLogsForUser(req.params.steamId)
+    if (req.query.status) logs = logs.filter(l => l.status === req.query.status)
     res.json({ logs })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -80,7 +107,7 @@ router.get('/:steamId/logs', async (req, res) => {
 router.patch('/me/bio', requireAuth, async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
-      req.user._id,
+      toObjId(req.user._id),
       { bio: (req.body.bio || '').slice(0, 500) },
       { new: true }
     )

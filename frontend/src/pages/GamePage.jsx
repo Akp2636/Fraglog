@@ -66,26 +66,27 @@ export default function GamePage() {
       </div>
 
       {/* ── Page body — fully below hero, no overlap ── */}
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 2rem 4rem' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem 2rem 4rem', overflowX: 'hidden' }}>
 
         {/* ── Game header row ── */}
         <div style={{
           display: 'flex', alignItems: 'flex-start',
-          gap: 24, marginBottom: '2rem',
+          gap: 20, marginBottom: '2rem',
           flexWrap: 'wrap',
         }}>
           {/* Cover image */}
           <img src={headerImg} alt={game.name}
-            style={{ width: 220, height: 103, objectFit: 'cover', border: '2px solid #1a1a1a', flexShrink: 0 }}
+            style={{ width: 200, height: 94, objectFit: 'cover', border: '2px solid #1a1a1a', flexShrink: 0 }}
             onError={e => e.target.style.display = 'none'}
           />
 
           {/* Title + meta */}
-          <div style={{ flex: 1, minWidth: 240 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h1 style={{
               fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic',
-              fontSize: 'clamp(28px, 4vw, 48px)', textTransform: 'uppercase',
+              fontSize: 'clamp(24px, 3.5vw, 44px)', textTransform: 'uppercase',
               color: '#fff', lineHeight: 1, letterSpacing: -1, marginBottom: 12,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {game.name}
             </h1>
@@ -164,7 +165,7 @@ export default function GamePage() {
         </div>
 
         {/* ── Two-column layout ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 24, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 260px', gap: 24, alignItems: 'start' }}>
 
           {/* Main */}
           <div>
