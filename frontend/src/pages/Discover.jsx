@@ -1,17 +1,17 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { FiSearch, FiTrendingUp } from 'react-icons/fi'
 import api from '../utils/api'
 import { PageLoader, SkeletonCard } from '../components/LoadingSpinner'
 
 export default function Discover() {
-  const [params]   = useSearchParams()
-  const [query,    setQuery]   = useState(params.get('q') || '')
-  const [input,    setInput]   = useState(params.get('q') || '')
-  const [results,  setResults] = useState([])
-  const [trending, setTrending]= useState([])
-  const [loading,  setLoading] = useState(false)
-  const navigate   = useNavigate()
+  const [params]    = useSearchParams()
+  const [query,     setQuery]    = useState(params.get('q') || '')
+  const [input,     setInput]    = useState(params.get('q') || '')
+  const [results,   setResults]  = useState([])
+  const [trending,  setTrending] = useState([])
+  const [loading,   setLoading]  = useState(false)
+  const navigate    = useNavigate()
 
   useEffect(() => {
     api.get('/games/trending').then(r => setTrending(r.data.games || [])).catch(() => {})
@@ -36,121 +36,105 @@ export default function Discover() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2.5rem 1.5rem', minHeight: '80vh' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2.5rem 2rem', minHeight: '80vh' }}>
+
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 32, color: '#f0f0f8', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 24, height: 2, background: '#b9ff57' }} />
+          <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, color: '#b9ff57', textTransform: 'uppercase' }}>Browse</span>
+        </div>
+        <h1 style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic', fontSize: 48, textTransform: 'uppercase', color: '#fff', lineHeight: 1 }}>
           Discover Games
         </h1>
-        <p style={{ fontFamily: 'Karla', fontSize: 15, color: '#8888aa' }}>
-          Search any game on Steam. Read reviews, see ratings, log your status.
-        </p>
       </div>
 
-      {/* Search */}
+      {/* Search bar */}
       <form onSubmit={handleSubmit} style={{ marginBottom: '2.5rem' }}>
         <div style={{ position: 'relative', maxWidth: 600 }}>
-          <FiSearch style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#555570', pointerEvents: 'none', fontSize: 16 }} />
+          <FiSearch style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: '#444', pointerEvents: 'none' }} />
           <input
             value={input}
             onChange={e => { setInput(e.target.value); setQuery(e.target.value) }}
-            placeholder="Search Steam games..."
+            placeholder="SEARCH ANY STEAM GAME..."
             autoFocus
             style={{
-              width: '100%', background: '#1c1c28', border: '1px solid #2a2a3d', borderRadius: 12,
-              paddingLeft: 46, paddingRight: 16, paddingTop: 14, paddingBottom: 14,
-              fontSize: 16, color: '#f0f0f8', fontFamily: 'Karla', outline: 'none', transition: 'border-color 0.2s',
+              width: '100%', background: '#0d0d0d', border: '1px solid #222',
+              borderBottom: '2px solid #b9ff57',
+              paddingLeft: 44, paddingRight: 16, paddingTop: 14, paddingBottom: 14,
+              fontSize: 14, color: '#fff',
+              fontFamily: '"Barlow Condensed"', fontWeight: 700, letterSpacing: 2,
+              textTransform: 'uppercase', outline: 'none',
             }}
-            onFocus={e => e.target.style.borderColor = '#00e676'}
-            onBlur={e  => e.target.style.borderColor = '#2a2a3d'}
           />
         </div>
       </form>
 
       {/* Results */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-          {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1, background: '#111' }}>
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} style={{ background: '#080808', padding: '0' }}><SkeletonCard /></div>
+          ))}
         </div>
       ) : query && results.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#555570' }}>
-          <p style={{ fontSize: 40, marginBottom: 12 }}>🔍</p>
-          <p style={{ fontFamily: 'Karla', fontSize: 15 }}>No games found for "{query}"</p>
+        <div style={{ padding: '4rem', textAlign: 'center', border: '1px solid #111' }}>
+          <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 20, color: '#333', textTransform: 'uppercase', letterSpacing: 2 }}>
+            No results for "{query}"
+          </p>
         </div>
       ) : query && results.length > 0 ? (
         <div>
-          <p style={{ fontFamily: 'Karla', fontSize: 13, color: '#555570', marginBottom: '1rem' }}>
-            {results.length} results for "{query}"
+          <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 2, color: '#444', textTransform: 'uppercase', marginBottom: '1rem' }}>
+            {results.length} Results
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-            {results.map(g => (
-              <Link key={g.id} to={`/game/${g.id}`} style={{ textDecoration: 'none' }}>
-                <div className="game-card-hover" style={{
-                  background: '#1c1c28', borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2a3d',
-                }}>
-                  <div style={{ paddingTop: '46.7%', position: 'relative', background: '#0f0f17' }}>
-                    <img src={g.tiny_image || `https://cdn.akamai.steamstatic.com/steam/apps/${g.id}/header.jpg`}
-                      alt={g.name}
-                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => e.target.style.display = 'none'}
-                    />
-                  </div>
-                  <div style={{ padding: '0.6rem 0.75rem' }}>
-                    <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: '#f0f0f8',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {g.name}
-                    </p>
-                    {g.price && (
-                      <p style={{ fontFamily: 'Karla', fontSize: 11, color: '#00e676', marginTop: 2 }}>
-                        {g.price.final_formatted || 'Free'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1, background: '#111' }}>
+            {results.map(g => <GameTile key={g.id} id={g.id} name={g.name} img={g.tiny_image} price={g.price?.final_formatted} />)}
           </div>
         </div>
-      ) : (
-        /* Trending */
-        trending.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1.25rem' }}>
-              <FiTrendingUp style={{ color: '#00e676' }} />
-              <h2 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 18, color: '#f0f0f8' }}>
-                Trending on Fraglog
-              </h2>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-              {trending.map(g => (
-                <Link key={g._id} to={`/game/${g._id}`} style={{ textDecoration: 'none' }}>
-                  <div className="game-card-hover" style={{
-                    background: '#1c1c28', borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2a3d',
-                  }}>
-                    <div style={{ paddingTop: '46.7%', position: 'relative', background: '#0f0f17' }}>
-                      <img
-                        src={g.headerImage || `https://cdn.akamai.steamstatic.com/steam/apps/${g._id}/header.jpg`}
-                        alt={g.gameName}
-                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={e => e.target.style.display = 'none'}
-                      />
-                    </div>
-                    <div style={{ padding: '0.6rem 0.75rem' }}>
-                      <p style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: '#f0f0f8',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {g.gameName}
-                      </p>
-                      <p style={{ fontFamily: 'Karla', fontSize: 11, color: '#555570', marginTop: 2 }}>
-                        {g.count} review{g.count !== 1 ? 's' : ''}
-                      </p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+      ) : trending.length > 0 ? (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.25rem' }}>
+            <FiTrendingUp style={{ color: '#b9ff57' }} />
+            <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 3, color: '#b9ff57', textTransform: 'uppercase' }}>
+              Trending on Fraglog
+            </p>
           </div>
-        )
-      )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1, background: '#111' }}>
+            {trending.map(g => <GameTile key={g._id} id={g._id} name={g.gameName} count={g.count} />)}
+          </div>
+        </div>
+      ) : null}
     </div>
+  )
+}
+
+function GameTile({ id, name, img, price, count }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <Link to={`/game/${id}`} style={{ textDecoration: 'none' }}>
+      <div
+        style={{ background: hov ? '#111' : '#080808', transition: 'background 0.15s', cursor: 'pointer' }}
+        onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      >
+        <div style={{ paddingTop: '46.7%', position: 'relative', background: '#0d0d0d' }}>
+          <img
+            src={img || `https://cdn.akamai.steamstatic.com/steam/apps/${id}/header.jpg`}
+            alt={name}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={e => e.target.style.display = 'none'}
+          />
+        </div>
+        <div style={{ padding: '0.6rem 0.75rem' }}>
+          <p style={{
+            fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 13,
+            textTransform: 'uppercase', letterSpacing: 0.5, color: '#fff',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{name}</p>
+          {price && <p style={{ fontFamily: '"Barlow Condensed"', fontSize: 12, color: '#b9ff57', marginTop: 2, fontWeight: 700 }}>{price}</p>}
+          {count && <p style={{ fontFamily: '"Barlow Condensed"', fontSize: 11, color: '#444', marginTop: 2, letterSpacing: 1, textTransform: 'uppercase' }}>{count} reviews</p>}
+        </div>
+      </div>
+    </Link>
   )
 }

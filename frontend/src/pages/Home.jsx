@@ -39,7 +39,7 @@ export default function Home() {
       {/* ────────────────────────────────────────────────────────────
           HERO — Full viewport, massive italic type, dark photo bg
       ──────────────────────────────────────────────────────────── */}
-      <section style={{ position: 'relative', height: '100vh', minHeight: 700, overflow: 'hidden' }}>
+      <section style={{ position: 'relative', height: 'calc(100vh - 64px)', minHeight: 600, overflow: 'hidden' }}>
 
         {/* Background image */}
         <img

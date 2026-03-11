@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { FiPlus, FiEdit2, FiExternalLink } from 'react-icons/fi'
+import { SiSteam } from 'react-icons/si'
 import { useAuth } from '../context/AuthContext'
 import ReviewCard from '../components/ReviewCard'
 import WriteReviewModal from '../components/WriteReviewModal'
@@ -21,7 +22,6 @@ export default function GamePage() {
   const [loading,    setLoading]    = useState(true)
   const [showReview, setShowReview] = useState(false)
   const [showLog,    setShowLog]    = useState(false)
-  const [imgError,   setImgError]   = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -31,97 +31,131 @@ export default function GamePage() {
     ]).then(([gRes, rRes]) => {
       setGame(gRes.data.game)
       setFraglog(gRes.data.fraglog)
-      const allReviews = rRes.data.reviews || []
-      setReviews(allReviews)
-      if (user) setMyReview(allReviews.find(r => r.steamId === user.steamId) || null)
+      const all = rRes.data.reviews || []
+      setReviews(all)
+      if (user) setMyReview(all.find(r => r.steamId === user.steamId) || null)
     }).catch(() => toast.error('Failed to load game'))
       .finally(() => setLoading(false))
 
     if (user) {
-      api.get(`/logs/check/${appId}`)
-        .then(r => setMyLog(r.data.log))
-        .catch(() => {})
+      api.get(`/logs/check/${appId}`).then(r => setMyLog(r.data.log)).catch(() => {})
     }
   }, [appId, user?.steamId])
 
   if (loading) return <PageLoader />
-  if (!game) return <div style={{ textAlign: 'center', padding: '4rem', color: '#8888aa' }}>Game not found</div>
+  if (!game)   return (
+    <div style={{ textAlign: 'center', padding: '6rem 2rem', color: '#555' }}>
+      <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 24, textTransform: 'uppercase', letterSpacing: 2 }}>Game not found</p>
+    </div>
+  )
 
-  const hero = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_hero.jpg`
-  const header = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`
+  const headerImg = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`
+  const heroImg   = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/library_hero.jpg`
   const otherReviews = reviews.filter(r => r.steamId !== user?.steamId)
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* ── Hero ── */}
-      <div style={{ position: 'relative', height: 320, overflow: 'hidden', background: '#0a0a12' }}>
-        <img
-          src={imgError ? header : hero}
-          alt={game.name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.35)' }}
-          onError={() => setImgError(true)}
+    <div style={{ minHeight: '100vh', background: '#080808' }}>
+
+      {/* ── Hero banner — NO overlap, just a dark strip ── */}
+      <div style={{ position: 'relative', height: 220, overflow: 'hidden', background: '#0a0a0a' }}>
+        <img src={heroImg} alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.25) blur(2px)', transform: 'scale(1.05)' }}
+          onError={e => e.target.style.display = 'none'}
         />
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, #0f0f17 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 0%, #080808 100%)' }} />
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 1.5rem' }}>
-        {/* ── Game header ── */}
-        <div style={{ display: 'flex', gap: 20, marginTop: -80, marginBottom: '2rem', flexWrap: 'wrap' }}>
-          <img src={header} alt={game.name}
-            style={{ width: 200, height: 94, objectFit: 'cover', borderRadius: 10, border: '3px solid #0f0f17', flexShrink: 0 }}
+      {/* ── Page body — fully below hero, no overlap ── */}
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 2rem 4rem' }}>
+
+        {/* ── Game header row ── */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-start',
+          gap: 24, marginBottom: '2rem',
+          flexWrap: 'wrap',
+        }}>
+          {/* Cover image */}
+          <img src={headerImg} alt={game.name}
+            style={{ width: 220, height: 103, objectFit: 'cover', border: '2px solid #1a1a1a', flexShrink: 0 }}
             onError={e => e.target.style.display = 'none'}
           />
-          <div style={{ flex: 1, minWidth: 250, paddingTop: 50 }}>
-            <h1 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 28, color: '#f0f0f8', marginBottom: 8 }}>{game.name}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+
+          {/* Title + meta */}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <h1 style={{
+              fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic',
+              fontSize: 'clamp(28px, 4vw, 48px)', textTransform: 'uppercase',
+              color: '#fff', lineHeight: 1, letterSpacing: -1, marginBottom: 12,
+            }}>
+              {game.name}
+            </h1>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 8 }}>
               {fraglog?.reviewCount > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <StarRatingDisplay value={fraglog.avgRating} size={14} />
-                  <span style={{ fontSize: 12, color: '#555570', fontFamily: 'Karla' }}>
+                  <StarRatingDisplay value={fraglog.avgRating} size={13} />
+                  <span style={{ fontSize: 12, color: '#444', fontFamily: 'Barlow' }}>
                     ({fraglog.reviewCount} review{fraglog.reviewCount !== 1 ? 's' : ''})
                   </span>
                 </div>
               )}
               {fraglog?.logCount > 0 && (
-                <span style={{ fontSize: 12, color: '#555570', fontFamily: 'Karla' }}>
+                <span style={{ fontSize: 12, color: '#444', fontFamily: 'Barlow' }}>
                   🎮 {fraglog.logCount} players logged
                 </span>
               )}
               {game.metacritic && (
                 <span style={{
-                  background: game.metacritic.score >= 75 ? '#1a3a1a' : '#3a1a1a',
-                  border: `1px solid ${game.metacritic.score >= 75 ? '#00e676' : '#ff4757'}`,
-                  color: game.metacritic.score >= 75 ? '#00e676' : '#ff4757',
-                  borderRadius: 6, padding: '2px 8px', fontSize: 12, fontFamily: 'JetBrains Mono', fontWeight: 700,
+                  background: game.metacritic.score >= 75 ? '#0a1a0a' : '#1a0a0a',
+                  border: `1px solid ${game.metacritic.score >= 75 ? '#b9ff57' : '#ff2d2d'}`,
+                  color: game.metacritic.score >= 75 ? '#b9ff57' : '#ff2d2d',
+                  padding: '2px 8px', fontSize: 11,
+                  fontFamily: '"Barlow Condensed"', fontWeight: 700, letterSpacing: 1,
                 }}>
                   MC {game.metacritic.score}
                 </span>
               )}
-              <a href={`https://store.steampowered.com/app/${appId}`} target="_blank" rel="noopener noreferrer"
-                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#40bcf4', fontFamily: 'Karla', textDecoration: 'none' }}>
-                Steam <FiExternalLink size={11} />
-              </a>
             </div>
+
+            <a href={`https://store.steampowered.com/app/${appId}`} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#40bcf4', fontFamily: 'Barlow', textDecoration: 'none' }}>
+              <SiSteam size={12} /> View on Steam <FiExternalLink size={10} />
+            </a>
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons — always visible, right side */}
           {user && (
-            <div style={{ display: 'flex', gap: 8, paddingTop: 50, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
               <button onClick={() => setShowLog(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: myLog ? '#00e67622' : '#00e676', border: myLog ? '1px solid #00e676' : 'none',
-                borderRadius: 10, padding: '10px 16px', cursor: 'pointer',
-                color: myLog ? '#00e676' : '#0f0f17', fontFamily: 'Syne', fontWeight: 700, fontSize: 13,
-              }}>
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: myLog ? 'transparent' : '#b9ff57',
+                border: myLog ? '1px solid #b9ff57' : 'none',
+                padding: '11px 20px', cursor: 'pointer',
+                fontFamily: '"Barlow Condensed"', fontWeight: 800,
+                fontSize: 13, letterSpacing: 2, textTransform: 'uppercase',
+                color: myLog ? '#b9ff57' : '#080808',
+                transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#b9ff57'; e.currentTarget.style.color = '#080808' }}
+                onMouseLeave={e => { e.currentTarget.style.background = myLog ? 'transparent' : '#b9ff57'; e.currentTarget.style.color = myLog ? '#b9ff57' : '#080808' }}
+              >
                 {myLog ? <FiEdit2 size={13} /> : <FiPlus size={13} />}
-                {myLog ? myLog.status.replace('_', ' ') : 'Log Game'}
+                {myLog ? myLog.status.replace(/_/g, ' ') : 'Log Game'}
               </button>
+
               <button onClick={() => setShowReview(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: myReview ? '#40bcf422' : 'transparent', border: `1px solid ${myReview ? '#40bcf4' : '#2a2a3d'}`,
-                borderRadius: 10, padding: '10px 16px', cursor: 'pointer',
-                color: myReview ? '#40bcf4' : '#8888aa', fontFamily: 'Syne', fontWeight: 700, fontSize: 13, transition: 'all 0.15s',
-              }}>
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'transparent',
+                border: `1px solid ${myReview ? '#40bcf4' : '#333'}`,
+                padding: '11px 20px', cursor: 'pointer',
+                fontFamily: '"Barlow Condensed"', fontWeight: 800,
+                fontSize: 13, letterSpacing: 2, textTransform: 'uppercase',
+                color: myReview ? '#40bcf4' : '#555',
+                transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#fff'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = myReview ? '#40bcf4' : '#333'; e.currentTarget.style.color = myReview ? '#40bcf4' : '#555' }}
+              >
                 {myReview ? <FiEdit2 size={13} /> : <FiPlus size={13} />}
                 {myReview ? 'Edit Review' : 'Write Review'}
               </button>
@@ -129,13 +163,15 @@ export default function GamePage() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, alignItems: 'start' }}>
-          {/* ── Main content ── */}
+        {/* ── Two-column layout ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 24, alignItems: 'start' }}>
+
+          {/* Main */}
           <div>
             {/* Description */}
             {game.short_description && (
-              <div style={{ background: '#1c1c28', borderRadius: 14, padding: '1.25rem', marginBottom: '1.5rem', border: '1px solid #2a2a3d' }}>
-                <p style={{ fontFamily: 'Karla', fontSize: 14, color: '#aaaacc', lineHeight: 1.7 }}>
+              <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', padding: '1.25rem', marginBottom: '2rem' }}>
+                <p style={{ fontFamily: 'Barlow', fontWeight: 300, fontSize: 14, color: '#888', lineHeight: 1.75 }}>
                   {game.short_description}
                 </p>
               </div>
@@ -143,45 +179,56 @@ export default function GamePage() {
 
             {/* Your review */}
             {myReview && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 16, color: '#f0f0f8', marginBottom: 12 }}>Your Review</h2>
-                <ReviewCard review={{ ...myReview, author: user }}
-                  showGame={false}
-                  onEdit={() => setShowReview(true)}
-                  onDelete={async (id) => {
-                    try {
-                      await api.delete(`/reviews/${id}`)
-                      setMyReview(null)
-                      setReviews(r => r.filter(x => x._id !== id))
-                      toast.success('Review deleted')
-                    } catch { toast.error('Failed') }
-                  }}
-                />
+              <div style={{ marginBottom: '2rem' }}>
+                <SectionLabel>Your Review</SectionLabel>
+                <div style={{ background: '#0d0d0d', padding: '1.25rem' }}>
+                  <ReviewCard
+                    review={{ ...myReview, author: user }}
+                    showGame={false}
+                    onEdit={() => setShowReview(true)}
+                    onDelete={async (id) => {
+                      try {
+                        await api.delete(`/reviews/${id}`)
+                        setMyReview(null)
+                        setReviews(r => r.filter(x => x._id !== id))
+                        toast.success('Review deleted')
+                      } catch { toast.error('Failed') }
+                    }}
+                  />
+                </div>
               </div>
             )}
 
             {/* Community reviews */}
-            <h2 style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 16, color: '#f0f0f8', marginBottom: 12 }}>
-              Community Reviews {otherReviews.length > 0 && <span style={{ color: '#555570', fontWeight: 400 }}>({otherReviews.length})</span>}
-            </h2>
+            <SectionLabel>Community Reviews {otherReviews.length > 0 && `(${otherReviews.length})`}</SectionLabel>
             {otherReviews.length === 0 ? (
               <EmptyState icon="✍️" title="No reviews yet" description="Be the first to review this game!" />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {otherReviews.map(r => <ReviewCard key={r._id} review={r} showGame={false} />)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#1a1a1a' }}>
+                {otherReviews.map(r => (
+                  <div key={r._id} style={{ background: '#080808', padding: '1.25rem' }}>
+                    <ReviewCard review={r} showGame={false} />
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* ── Sidebar ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Sidebar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#1a1a1a' }}>
+
             {/* Genres */}
             {game.genres?.length > 0 && (
-              <div style={{ background: '#1c1c28', borderRadius: 12, padding: '1rem', border: '1px solid #2a2a3d' }}>
-                <p style={{ fontFamily: 'Karla', fontWeight: 700, fontSize: 11, color: '#555570', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Genres</p>
+              <div style={{ background: '#0d0d0d', padding: '1.25rem' }}>
+                <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: 10 }}>Genres</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {game.genres.map(g => (
-                    <span key={g.id} style={{ background: '#0f0f17', border: '1px solid #2a2a3d', borderRadius: 6, padding: '3px 8px', fontSize: 12, fontFamily: 'Karla', color: '#8888aa' }}>
+                    <span key={g.id} style={{
+                      background: '#111', border: '1px solid #222',
+                      padding: '3px 9px', fontSize: 11,
+                      fontFamily: '"Barlow Condensed"', fontWeight: 700,
+                      letterSpacing: 1, textTransform: 'uppercase', color: '#555',
+                    }}>
                       {g.description}
                     </span>
                   ))}
@@ -190,32 +237,33 @@ export default function GamePage() {
             )}
 
             {/* Details */}
-            <div style={{ background: '#1c1c28', borderRadius: 12, padding: '1rem', border: '1px solid #2a2a3d' }}>
-              <p style={{ fontFamily: 'Karla', fontWeight: 700, fontSize: 11, color: '#555570', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Details</p>
+            <div style={{ background: '#0d0d0d', padding: '1.25rem' }}>
+              <p style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: '#444', marginBottom: 10 }}>Details</p>
               {[
                 ['Developer', game.developers?.[0]],
                 ['Publisher', game.publishers?.[0]],
                 ['Release',   game.release_date?.date],
-                ['Platforms', [game.platforms?.windows && 'Windows', game.platforms?.mac && 'Mac', game.platforms?.linux && 'Linux'].filter(Boolean).join(', ')],
-              ].filter(([,v]) => v).map(([k,v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-                  <span style={{ fontFamily: 'Karla', fontSize: 12, color: '#555570', flexShrink: 0 }}>{k}</span>
-                  <span style={{ fontFamily: 'Karla', fontSize: 12, color: '#f0f0f8', textAlign: 'right' }}>{v}</span>
+                ['Platforms', [
+                  game.platforms?.windows && 'Windows',
+                  game.platforms?.mac && 'Mac',
+                  game.platforms?.linux && 'Linux',
+                ].filter(Boolean).join(', ')],
+              ].filter(([, v]) => v).map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid #111' }}>
+                  <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#444' }}>{k}</span>
+                  <span style={{ fontFamily: 'Barlow', fontSize: 12, color: '#888', textAlign: 'right' }}>{v}</span>
                 </div>
               ))}
             </div>
 
             {/* Screenshots */}
-            {game.screenshots?.slice(0, 4).map(s => (
-              <img key={s.id}
-                src={s.path_thumbnail}
-                style={{ width: '100%', borderRadius: 8, border: '1px solid #2a2a3d' }}
+            {game.screenshots?.slice(0, 3).map(s => (
+              <img key={s.id} src={s.path_thumbnail}
+                style={{ width: '100%', display: 'block', border: '1px solid #1a1a1a' }}
               />
             ))}
           </div>
         </div>
-
-        <div style={{ height: 60 }} />
       </div>
 
       {showReview && (
@@ -242,5 +290,17 @@ export default function GamePage() {
         />
       )}
     </div>
+  )
+}
+
+function SectionLabel({ children }) {
+  return (
+    <p style={{
+      fontFamily: '"Barlow Condensed"', fontWeight: 700,
+      fontSize: 11, letterSpacing: 3, textTransform: 'uppercase',
+      color: '#444', marginBottom: 12,
+    }}>
+      {children}
+    </p>
   )
 }
