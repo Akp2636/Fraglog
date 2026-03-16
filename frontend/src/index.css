@@ -3,175 +3,163 @@
 @tailwind utilities;
 
 :root {
-  --green: #b9ff57;
-  --white: #ffffff;
-  --black: #080808;
+  --green: #9EFF00;
+  --green-dim: #7ACC00;
+  --bg: #0A0A0A;
+  --bg2: #111111;
+  --bg3: #161616;
+  --bg4: #1C1C1C;
+  --border: #222222;
+  --border-sub: #1A1A1A;
+  --text: #F0F0F0;
+  --text2: #888888;
+  --text3: #444444;
 }
 
 @layer base {
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
-
   body {
-    background-color: #080808;
-    color: #ffffff;
-    font-family: 'Barlow', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
     -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
   }
-
   ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: #080808; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  a { color: inherit; text-decoration: none; }
 }
 
-@layer components {
+/* ── Typography ──────────────────────────────────────────────────────── */
+.t-display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; text-transform: uppercase; }
+.t-heading { font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.t-label   { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text2); }
+.t-body    { font-family: 'Manrope', sans-serif; }
+.t-mono    { font-family: 'JetBrains Mono', monospace; }
 
-  .btn-primary {
-    @apply inline-flex items-center gap-2 px-6 py-3
-           bg-accent-green text-bg-primary
-           font-display font-extrabold text-sm tracking-widest uppercase
-           hover:bg-white transition-all duration-200 cursor-pointer border-none outline-none;
-  }
+/* ── Marquee ─────────────────────────────────────────────────────────── */
+@keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.marquee-track { animation: marquee 28s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
 
-  .btn-ghost {
-    @apply inline-flex items-center gap-2 px-6 py-3
-           bg-transparent text-white
-           font-display font-extrabold text-sm tracking-widest uppercase
-           border border-white border-opacity-30
-           hover:border-white hover:bg-white hover:bg-opacity-5
-           transition-all duration-200 cursor-pointer outline-none;
-  }
+/* ── Animations ──────────────────────────────────────────────────────── */
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
+@keyframes fadeIn   { from { opacity: 0 } to { opacity: 1 } }
+@keyframes shimmer  { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+@keyframes spin     { to { transform: rotate(360deg) } }
+@keyframes pulse    { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
 
-  .btn-outline-green {
-    @apply inline-flex items-center gap-2 px-6 py-3
-           bg-transparent text-accent-green
-           font-display font-extrabold text-sm tracking-widest uppercase
-           border border-accent-green
-           hover:bg-accent-green hover:text-black
-           transition-all duration-200 cursor-pointer outline-none;
-  }
+.anim-up   { animation: fadeUp  0.55s ease both; }
+.anim-in   { animation: fadeIn  0.4s  ease both; }
+.d1 { animation-delay: 0.1s } .d2 { animation-delay: 0.2s }
+.d3 { animation-delay: 0.3s } .d4 { animation-delay: 0.4s }
 
-  .card {
-    @apply bg-bg-card border border-border;
-  }
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.card-lift { transition: transform 0.22s ease, box-shadow 0.22s ease; }
+.card-lift:hover { transform: translateY(-5px); box-shadow: 0 16px 48px rgba(0,0,0,0.55); }
 
-  .input {
-    @apply w-full bg-bg-secondary border border-border px-4 py-3
-           text-white font-body text-sm placeholder-text-muted
-           focus:outline-none focus:border-accent-green transition-colors;
-  }
-
-  .textarea {
-    @apply w-full bg-bg-secondary border border-border px-4 py-3
-           text-white font-body text-sm placeholder-text-muted
-           focus:outline-none focus:border-accent-green transition-colors resize-none;
-  }
-
-  .label {
-    @apply block text-xs font-display font-bold tracking-widest uppercase text-text-secondary mb-2;
-  }
+.game-card-hover { position: relative; overflow: hidden; }
+.game-card-hover .overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
+  opacity: 0; transition: opacity 0.25s ease;
+  display: flex; flex-direction: column; justify-content: flex-end; padding: 12px;
 }
+.game-card-hover:hover .overlay { opacity: 1; }
 
-/* Typography */
-
-.display-xl {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 900;
-  font-style: italic;
-  text-transform: uppercase;
-  line-height: 0.9;
-  letter-spacing: -1px;
-}
-
-.display-lg {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 800;
-  text-transform: uppercase;
-  line-height: 1;
-  letter-spacing: -0.5px;
-}
-
-.display-md {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  text-transform: uppercase;
-  line-height: 1.1;
-}
-
-.eyebrow {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
-
-/* Status badges */
-
-.status-playing      { color: #b9ff57; border-color: #b9ff5740; background: #b9ff5710; }
-.status-played       { color: #40bcf4; border-color: #40bcf440; background: #40bcf410; }
-.status-completed    { color: #ffd700; border-color: #ffd70040; background: #ffd70010; }
-.status-dropped      { color: #ff2d2d; border-color: #ff2d2d40; background: #ff2d2d10; }
-.status-on_hold      { color: #ff6b35; border-color: #ff6b3540; background: #ff6b3510; }
-.status-want_to_play { color: #888888; border-color: #88888840; background: #88888810; }
-
-/* Animations */
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-40px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.animate-fadeInUp    { animation: fadeInUp 0.6s ease forwards; }
-.animate-fadeIn      { animation: fadeIn 0.4s ease forwards; }
-.animate-slideInLeft { animation: slideInLeft 0.6s ease forwards; }
-
-.delay-100 { animation-delay: 0.1s; opacity: 0; }
-.delay-200 { animation-delay: 0.2s; opacity: 0; }
-.delay-300 { animation-delay: 0.3s; opacity: 0; }
-.delay-400 { animation-delay: 0.4s; opacity: 0; }
-
+/* ── Skeleton ────────────────────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(90deg, #161616 25%, #1e1e1e 50%, #161616 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Card hover */
-
-.card-lift {
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+/* ── Glass ───────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(10,10,10,0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.card-lift:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+/* ── Status badge ────────────────────────────────────────────────────── */
+.status-pill {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; font-size: 10px;
+  font-family: 'Oswald', sans-serif; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
 }
 
-/* Green glow */
+/* ── Inputs ──────────────────────────────────────────────────────────── */
+.inp {
+  width: 100%; background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text); font-family: 'Manrope', sans-serif; font-size: 14px;
+  padding: 10px 14px; outline: none;
+  transition: border-color 0.15s;
+}
+.inp:focus { border-color: var(--green); }
+.inp::placeholder { color: var(--text3); }
 
-.glow-green {
-  box-shadow: 0 0 30px rgba(185,255,87,0.2);
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--green); color: #0A0A0A;
+  font-family: 'Oswald', sans-serif; font-weight: 600;
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 11px 24px; border: none; cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
 }
-main {
-  padding-top: 64px;
+.btn-primary:hover { background: #b5ff33; }
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--text2);
+  font-family: 'Oswald', sans-serif; font-weight: 500;
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 10px 20px; border: 1px solid var(--border); cursor: pointer;
+  transition: all 0.15s;
 }
+.btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+
+.btn-green-outline {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--green);
+  font-family: 'Oswald', sans-serif; font-weight: 600;
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 10px 20px; border: 1px solid var(--green); cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-green-outline:hover { background: var(--green); color: #0A0A0A; }
+
+/* ── Section label ───────────────────────────────────────────────────── */
+.section-label {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 24px;
+}
+.section-label::before {
+  content: ''; display: block;
+  width: 3px; height: 20px; background: var(--green);
+  flex-shrink: 0;
+}
+.section-label span {
+  font-family: 'Oswald', sans-serif; font-weight: 600;
+  font-size: 20px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text);
+}
+
+/* ── Divider ─────────────────────────────────────────────────────────── */
+.divider { border: none; border-top: 1px solid var(--border-sub); }
+
+/* ── Hover nav link ──────────────────────────────────────────────────── */
+.nav-link {
+  font-family: 'Oswald', sans-serif; font-weight: 500;
+  font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text3); text-decoration: none; padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-link:hover { color: var(--text); }
+.nav-link.active { color: var(--text); border-bottom-color: var(--green); }

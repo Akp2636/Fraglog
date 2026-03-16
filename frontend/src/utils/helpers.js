@@ -28,21 +28,22 @@ export const STATUS_LABELS = {
 }
 
 export const STATUS_COLORS = {
-  playing      : '#00e676',
-  played       : '#40bcf4',
-  want_to_play : '#888899',
-  dropped      : '#ff4757',
-  on_hold      : '#ff6b35',
-  completed    : '#ffd700',
+  playing      : '#9EFF00',
+  played       : '#40BCF4',
+  want_to_play : '#888888',
+  dropped      : '#FF3B3B',
+  on_hold      : '#FF6B35',
+  completed    : '#FFD700',
 }
 
+// No emojis — use text symbols
 export const STATUS_ICONS = {
-  playing      : '🎮',
-  played       : '✅',
-  want_to_play : '📌',
-  dropped      : '💀',
-  on_hold      : '⏸️',
-  completed    : '🏆',
+  playing      : 'Playing',
+  played       : 'Played',
+  want_to_play : 'Want to Play',
+  dropped      : 'Dropped',
+  on_hold      : 'On Hold',
+  completed    : 'Completed',
 }
 
 export const ratingLabel = (r) => {
@@ -51,5 +52,5 @@ export const ratingLabel = (r) => {
   return labels[r] || ''
 }
 
-export const truncate = (str, n=80) =>
+export const truncate = (str, n = 80) =>
   str && str.length > n ? str.slice(0, n) + '…' : str

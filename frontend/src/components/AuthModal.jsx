@@ -8,136 +8,77 @@ export default function AuthModal({ mode = 'signin', onClose }) {
   const [tab, setTab] = useState(mode)
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.92)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '1rem', animation: 'fadeIn 0.2s ease',
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: '#0d0d0d',
-        width: '100%', maxWidth: 480,
-        border: '1px solid #1a1a1a',
-        position: 'relative',
-        animation: 'fadeInUp 0.25s ease',
-      }}>
-        {/* Top accent line */}
-        <div style={{ height: 3, background: 'linear-gradient(90deg, #b9ff57, transparent)' }} />
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', animation: 'fadeIn 0.2s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#111', width: '100%', maxWidth: 440, border: '1px solid #222', position: 'relative' }}>
+        <div style={{ height: 2, background: '#9EFF00' }} />
 
-        {/* Close */}
-        <button onClick={onClose} style={{
-          position: 'absolute', top: 20, right: 20,
-          background: 'none', border: 'none', color: '#333',
-          cursor: 'pointer', padding: 4, transition: 'color 0.15s',
-        }}
-          onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-          onMouseLeave={e => e.currentTarget.style.color = '#333'}
-        >
-          <FiX size={18} />
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: '#444', cursor: 'pointer', transition: 'color 0.15s' }}
+          onMouseEnter={e => e.currentTarget.style.color='#F0F0F0'} onMouseLeave={e => e.currentTarget.style.color='#444'}>
+          <FiX size={16} />
         </button>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #1a1a1a' }}>
-          {[['signin','Sign In'], ['create','Create Account']].map(([key, label]) => (
+        <div style={{ display: 'flex', borderBottom: '1px solid #1A1A1A' }}>
+          {[['signin','Sign In'],['create','Join']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
-              flex: 1, padding: '16px', background: 'none', border: 'none',
-              borderBottom: tab === key ? '2px solid #b9ff57' : '2px solid transparent',
-              color: tab === key ? '#ffffff' : '#333',
-              fontFamily: '"Barlow Condensed"', fontWeight: 700,
-              fontSize: 13, letterSpacing: 2, textTransform: 'uppercase',
+              flex: 1, padding: '14px', background: 'none', border: 'none',
+              borderBottom: tab === key ? '2px solid #9EFF00' : '2px solid transparent',
+              color: tab === key ? '#F0F0F0' : '#444',
+              fontFamily: 'Oswald', fontWeight: 600, fontSize: 13,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
               cursor: 'pointer', transition: 'all 0.15s', marginBottom: -1,
-            }}>
-              {label}
-            </button>
+            }}>{label}</button>
           ))}
         </div>
 
-        <div style={{ padding: '2.5rem' }}>
-          {tab === 'signin' ? <SignInPanel onLogin={loginWithSteam} /> : <CreatePanel onLogin={loginWithSteam} />}
+        <div style={{ padding: '28px' }}>
+          {tab === 'signin' ? (
+            <>
+              <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 36, letterSpacing: '0.04em', color: '#F0F0F0', marginBottom: 8 }}>WELCOME BACK</h2>
+              <p style={{ fontFamily: 'Manrope', fontSize: 13, color: '#666', marginBottom: 24 }}>Sign in with your Steam account. No password needed.</p>
+              <button onClick={loginWithSteam} style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: '#1b2838', border: '1px solid #2a3f52', padding: '14px 18px',
+                cursor: 'pointer', transition: 'border-color 0.2s', marginBottom: 12,
+              }}
+                onMouseEnter={e => e.currentTarget.style.borderColor='#67c1f5'}
+                onMouseLeave={e => e.currentTarget.style.borderColor='#2a3f52'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <SiSteam size={20} style={{ color: '#67c1f5' }} />
+                  <span style={{ fontFamily: 'Oswald', fontWeight: 600, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#c6d4df' }}>Continue with Steam</span>
+                </div>
+                <FiArrowRight size={14} style={{ color: '#67c1f5' }} />
+              </button>
+              <p style={{ fontFamily: 'Manrope', fontSize: 11, color: '#333' }}>Steam OpenID — your password is never shared.</p>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontFamily: 'Bebas Neue', fontSize: 36, letterSpacing: '0.04em', color: '#F0F0F0', marginBottom: 8 }}>START YOUR <span style={{ color: '#9EFF00' }}>JOURNAL</span></h2>
+              <p style={{ fontFamily: 'Manrope', fontSize: 13, color: '#666', marginBottom: 20 }}>Connect Steam. Your library syncs automatically.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
+                {['Steam library synced automatically', 'Rate & review every game', 'Public gamer profile', 'Discover via community reviews'].map(item => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 4, height: 4, background: '#9EFF00', flexShrink: 0 }} />
+                    <span style={{ fontFamily: 'Manrope', fontSize: 12, color: '#666' }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={loginWithSteam} style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: '#9EFF00', border: 'none', padding: '14px 18px', cursor: 'pointer', transition: 'background 0.15s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background='#b5ff33'}
+                onMouseLeave={e => e.currentTarget.style.background='#9EFF00'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <SiSteam size={18} style={{ color: '#0A0A0A' }} />
+                  <span style={{ fontFamily: 'Oswald', fontWeight: 600, fontSize: 14, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#0A0A0A' }}>Connect with Steam</span>
+                </div>
+                <FiArrowRight size={14} style={{ color: '#0A0A0A' }} />
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <style>{`
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        @keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
-      `}</style>
-    </div>
-  )
-}
-
-function SignInPanel({ onLogin }) {
-  return (
-    <div>
-      <h2 style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic', fontSize: 40, textTransform: 'uppercase', color: '#fff', lineHeight: 1, marginBottom: 12 }}>
-        WELCOME<br />BACK.
-      </h2>
-      <p style={{ fontFamily: 'Barlow', fontWeight: 300, fontSize: 14, color: '#555', lineHeight: 1.7, marginBottom: '2rem' }}>
-        Sign in with your Steam account — no password needed.
-      </p>
-
-      <button onClick={onLogin} style={{
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#1b2838', border: '1px solid #2a3f52',
-        padding: '16px 20px', cursor: 'pointer', transition: 'all 0.2s', marginBottom: '1.5rem',
-      }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#243447'; e.currentTarget.style.borderColor = '#67c1f5' }}
-        onMouseLeave={e => { e.currentTarget.style.background = '#1b2838'; e.currentTarget.style.borderColor = '#2a3f52' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <SiSteam size={22} style={{ color: '#67c1f5' }} />
-          <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 700, fontSize: 14, letterSpacing: 2, textTransform: 'uppercase', color: '#c6d4df' }}>
-            Sign in through Steam
-          </span>
-        </div>
-        <FiArrowRight size={16} style={{ color: '#67c1f5' }} />
-      </button>
-
-      <p style={{ fontFamily: 'Barlow', fontSize: 12, color: '#333', lineHeight: 1.6 }}>
-        🔒 Steam OpenID — your password is never shared with Fraglog.
-      </p>
-    </div>
-  )
-}
-
-function CreatePanel({ onLogin }) {
-  return (
-    <div>
-      <h2 style={{ fontFamily: '"Barlow Condensed"', fontWeight: 900, fontStyle: 'italic', fontSize: 40, textTransform: 'uppercase', color: '#fff', lineHeight: 1, marginBottom: 12 }}>
-        START YOUR<br /><span style={{ color: '#b9ff57' }}>JOURNAL.</span>
-      </h2>
-      <p style={{ fontFamily: 'Barlow', fontWeight: 300, fontSize: 14, color: '#555', lineHeight: 1.7, marginBottom: '1.5rem' }}>
-        Your entire Steam library, synced instantly. Rate games, write reviews, build your gamer profile.
-      </p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: '2rem' }}>
-        {[
-          'Your Steam library synced automatically',
-          'Rate & review every game you play',
-          'Public profile with stats & game log',
-          'Discover games through community reviews',
-        ].map(item => (
-          <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 4, height: 4, background: '#b9ff57', borderRadius: '50%', flexShrink: 0 }} />
-            <span style={{ fontFamily: 'Barlow', fontSize: 13, color: '#555' }}>{item}</span>
-          </div>
-        ))}
-      </div>
-
-      <button onClick={onLogin} style={{
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#b9ff57', border: 'none',
-        padding: '16px 20px', cursor: 'pointer', transition: 'all 0.2s',
-      }}
-        onMouseEnter={e => e.currentTarget.style.background = '#ffffff'}
-        onMouseLeave={e => e.currentTarget.style.background = '#b9ff57'}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <SiSteam size={22} style={{ color: '#080808' }} />
-          <span style={{ fontFamily: '"Barlow Condensed"', fontWeight: 800, fontSize: 14, letterSpacing: 2, textTransform: 'uppercase', color: '#080808' }}>
-            Connect with Steam — Free
-          </span>
-        </div>
-        <FiArrowRight size={16} style={{ color: '#080808' }} />
-      </button>
+      <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
     </div>
   )
 }

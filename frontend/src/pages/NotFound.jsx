@@ -2,17 +2,10 @@ import { Link } from 'react-router-dom'
 
 export default function NotFound() {
   return (
-    <div style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem' }}>
-      <div style={{ fontSize: 80, marginBottom: '1rem' }}>💀</div>
-      <h1 style={{ fontFamily: 'Syne', fontWeight: 800, fontSize: 40, color: '#f0f0f8', marginBottom: 12 }}>404</h1>
-      <p style={{ fontFamily: 'Karla', fontSize: 18, color: '#8888aa', marginBottom: '2rem' }}>
-        You got fragged. This page doesn't exist.
-      </p>
-      <Link to="/" style={{
-        background: '#00e676', border: 'none', borderRadius: 10,
-        padding: '12px 24px', fontFamily: 'Syne', fontWeight: 700, fontSize: 15,
-        color: '#0f0f17', textDecoration: 'none',
-      }}>
+    <div style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', textAlign: 'center' }}>
+      <p style={{ fontFamily: 'Bebas Neue', fontSize: 120, color: '#1A1A1A', lineHeight: 1, letterSpacing: '0.02em' }}>404</p>
+      <h1 style={{ fontFamily: 'Oswald', fontWeight: 600, fontSize: 22, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#444', marginBottom: 16, marginTop: -8 }}>Page Not Found</h1>
+      <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#9EFF00', color: '#0A0A0A', fontFamily: 'Oswald', fontWeight: 600, fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '10px 24px', border: 'none' }}>
         Back to Home
       </Link>
     </div>
