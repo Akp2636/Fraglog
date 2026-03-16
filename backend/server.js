@@ -70,6 +70,11 @@ app.use(session({
   },
 }));
 
+// ── No-cache for dynamic user data (prevents stale 304 responses) ────────────
+app.use('/api/logs',    (req, res, next) => { res.set('Cache-Control','no-store'); next() })
+app.use('/api/users',   (req, res, next) => { res.set('Cache-Control','no-store'); next() })
+app.use('/api/reviews', (req, res, next) => { res.set('Cache-Control','no-store'); next() })
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',    authRoutes);
 app.use('/api/users',   userRoutes);

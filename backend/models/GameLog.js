@@ -1,7 +1,7 @@
-const mongoose = require('mongoose');
+const mongoose = require('mongoose')
 
 const gameLogSchema = new mongoose.Schema({
-  userId     : { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId     : { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   steamId    : { type: String, required: true },
   appId      : { type: String, required: true },
   gameName   : { type: String, required: true },
@@ -16,8 +16,9 @@ const gameLogSchema = new mongoose.Schema({
   notes      : { type: String, default: '', maxlength: 1000 },
   startDate  : { type: Date, default: null },
   finishDate : { type: Date, default: null },
-}, { timestamps: true });
+}, { timestamps: true })
 
-gameLogSchema.index({ userId: 1, appId: 1 }, { unique: true });
+// NON-unique index — just for query speed, never causes E11000
+gameLogSchema.index({ steamId: 1, appId: 1 })
 
-module.exports = mongoose.model('GameLog', gameLogSchema);
+module.exports = mongoose.model('GameLog', gameLogSchema)

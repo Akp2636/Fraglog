@@ -10,23 +10,10 @@ const { requireAuth } = require('../middleware/auth')
 const STEAM_KEY = process.env.STEAM_API_KEY
 
 const toObjId = (id) => {
-  try { return new mongoose.Types.ObjectId(id) } catch { return null }
+  try { return new mongoose.Types.ObjectId(String(id)) } catch { return null }
 }
 
-// Helper: find logs for a steamId — queries by BOTH steamId and userId (robust)
-async function getLogsForUser(steamId) {
-  // First try steamId (fastest)
-  let logs = await GameLog.find({ steamId }).sort({ updatedAt: -1 })
-  if (logs.length > 0) return logs
-  // Fallback: look up user._id and query by userId
-  const user = await User.findOne({ steamId }).select('_id')
-  if (user) {
-    logs = await GameLog.find({ userId: user._id }).sort({ updatedAt: -1 })
-  }
-  return logs
-}
-
-// GET /api/users/:steamId
+// GET /api/users/:steamId — profile + stats
 router.get('/:steamId', async (req, res) => {
   try {
     const user = await User.findOne({ steamId: req.params.steamId }).select('-__v')
@@ -34,18 +21,19 @@ router.get('/:steamId', async (req, res) => {
 
     const [reviewCount, allLogs] = await Promise.all([
       Review.countDocuments({ steamId: req.params.steamId }),
-      getLogsForUser(req.params.steamId),
+      GameLog.find({ steamId: req.params.steamId }),
     ])
 
-    const logCount      = allLogs.length
-    const ratedLogs     = allLogs.filter(l => l.rating)
-    const avgRating     = ratedLogs.length
+    const logCount     = allLogs.length
+    const ratedLogs    = allLogs.filter(l => l.rating)
+    const avgRating    = ratedLogs.length
       ? +(ratedLogs.reduce((s, l) => s + l.rating, 0) / ratedLogs.length).toFixed(1)
       : null
-    const statusCounts  = allLogs.reduce((acc, l) => {
+    const statusCounts = allLogs.reduce((acc, l) => {
       acc[l.status] = (acc[l.status] || 0) + 1; return acc
     }, {})
 
+    console.log(`👤 Profile ${req.params.steamId}: logs=${logCount} reviews=${reviewCount}`)
     res.json({ user, stats: { reviewCount, logCount, avgRating, statusCounts } })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -66,10 +54,10 @@ router.get('/:steamId/library', async (req, res) => {
     games        = games.slice(+offset, +offset + +limit)
     const appIds = games.map(g => String(g.appid))
 
-    // Get logs by BOTH steamId and userId
-    const allLogs = await getLogsForUser(req.params.steamId)
+    // Fetch all logs for this user at once
+    const allLogs = await GameLog.find({ steamId: req.params.steamId, appId: { $in: appIds } })
     const logMap  = {}
-    allLogs.forEach(l => { if (appIds.includes(l.appId)) logMap[l.appId] = l })
+    allLogs.forEach(l => { logMap[l.appId] = l })
 
     const enriched = games.map(g => ({
       appid            : g.appid,
@@ -89,7 +77,7 @@ router.get('/:steamId/library', async (req, res) => {
 // GET /api/users/:steamId/reviews
 router.get('/:steamId/reviews', async (req, res) => {
   try {
-    const reviews = await Review.find({ steamId: req.params.steamId }).sort({ createdAt: -1 }).limit(20)
+    const reviews = await Review.find({ steamId: req.params.steamId }).sort({ createdAt: -1 }).limit(50)
     res.json({ reviews })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -97,7 +85,7 @@ router.get('/:steamId/reviews', async (req, res) => {
 // GET /api/users/:steamId/logs
 router.get('/:steamId/logs', async (req, res) => {
   try {
-    let logs = await getLogsForUser(req.params.steamId)
+    let logs = await GameLog.find({ steamId: req.params.steamId }).sort({ updatedAt: -1 })
     if (req.query.status) logs = logs.filter(l => l.status === req.query.status)
     res.json({ logs })
   } catch (err) { res.status(500).json({ error: err.message }) }

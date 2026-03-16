@@ -38,7 +38,7 @@ export default function GamePage() {
       .finally(() => setLoading(false))
 
     if (user) {
-      api.get(`/logs/check/${appId}`).then(r => setMyLog(r.data.log)).catch(() => {})
+      api.get(`/logs/check/${appId}?t=${Date.now()}`).then(r => setMyLog(r.data.log)).catch(() => {})
     }
   }, [appId, user?.steamId])
 

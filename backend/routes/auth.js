@@ -4,21 +4,19 @@ const router   = express.Router()
 const User     = require('../models/User')
 const { signToken } = require('../middleware/auth')
 
-const BACKEND   = (process.env.BACKEND_URL  || 'http://localhost:5000').replace(/\/$/, '')
-const FRONTEND  = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const BACKEND  = (process.env.BACKEND_URL  || 'http://localhost:5000').replace(/\/$/, '')
+const FRONTEND = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
 const STEAM_KEY = process.env.STEAM_API_KEY
-const OPENID    = 'https://steamcommunity.com/openid/login'
+const OPENID   = 'https://steamcommunity.com/openid/login'
 const RETURN_TO = `${BACKEND}/api/auth/steam/callback`
 
-// Debug
 router.get('/debug', (req, res) => res.json({
-  BACKEND_URL  : process.env.BACKEND_URL    || 'NOT SET',
-  FRONTEND_URL : process.env.FRONTEND_URL   || 'NOT SET',
-  NODE_ENV     : process.env.NODE_ENV       || 'NOT SET',
-  STEAM_API_KEY: STEAM_KEY ? '✅ set' : '❌ MISSING',
-  JWT_SECRET   : process.env.JWT_SECRET     ? '✅ set' : '⚠️ using SESSION_SECRET fallback',
-  MONGO_URI    : process.env.MONGO_URI      ? '✅ set' : '❌ MISSING',
-  returnURL    : RETURN_TO,
+  BACKEND_URL : process.env.BACKEND_URL    || 'NOT SET',
+  FRONTEND_URL: process.env.FRONTEND_URL   || 'NOT SET',
+  STEAM_API_KEY: STEAM_KEY                 ? '✅' : '❌ MISSING',
+  JWT_SECRET  : process.env.JWT_SECRET     ? '✅' : '⚠️ fallback',
+  MONGO_URI   : process.env.MONGO_URI      ? '✅' : '❌ MISSING',
+  returnURL   : RETURN_TO,
 }))
 
 // Step 1 — redirect to Steam
@@ -70,7 +68,8 @@ router.get('/steam/callback', async (req, res) => {
     let player
     try {
       const r = await axios.get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', {
-        params: { key: STEAM_KEY, steamids: steamId }, timeout: 10000,
+        params: { key: STEAM_KEY, steamids: steamId },
+        timeout: 10000,
       })
       player = r.data?.response?.players?.[0]
     } catch (e) {
@@ -84,46 +83,51 @@ router.get('/steam/callback', async (req, res) => {
     // Upsert user in MongoDB
     let user
     try {
-      const payload = {
-        steamId,
-        username   : player.personaname    || 'Unknown',
-        avatar     : player.avatarfull     || player.avatar || '',
-        profileUrl : player.profileurl     || '',
-        realName   : player.realname       || '',
-        countryCode: player.loccountrycode || '',
-        lastLogin  : new Date(),
-      }
       user = await User.findOneAndUpdate(
         { steamId },
-        payload,
+        {
+          steamId,
+          username   : player.personaname    || 'Unknown',
+          avatar     : player.avatarfull     || player.avatar || '',
+          profileUrl : player.profileurl     || '',
+          realName   : player.realname       || '',
+          countryCode: player.loccountrycode || '',
+          lastLogin  : new Date(),
+        },
         { upsert: true, new: true }
       )
-      console.log('✅ User saved:', user.username)
+      console.log('✅ User saved:', user.username, '| _id:', String(user._id), '| steamId:', user.steamId)
     } catch (e) {
       console.error('❌ DB error:', e.message)
       return res.redirect(`${FRONTEND}/?error=db_error`)
     }
 
-    // ── Sign a JWT ────────────────────────────────────────────────────────────
-    const jwtToken = signToken(user)
+    // ── Sign JWT with EXPLICIT plain-object fields (NOT the Mongoose doc) ────
+    const jwtToken = signToken({
+      _id     : user._id,        // will be String()'d inside signToken
+      steamId : user.steamId,
+      username: user.username,
+      avatar  : user.avatar,
+    })
+    console.log('✅ JWT issued, steamId in token:', user.steamId)
 
-    // ── Also set session (for localhost fallback) ─────────────────────────────
+    // Session fallback for localhost
     req.session.user = {
-      _id     : user._id,
+      _id     : String(user._id),
       steamId : user.steamId,
       username: user.username,
       avatar  : user.avatar,
       bio     : user.bio || '',
     }
 
-    // ── Pass BOTH to frontend ─────────────────────────────────────────────────
+    // User data for frontend localStorage
     const userData = Buffer.from(JSON.stringify({
-      _id      : user._id,
-      steamId  : user.steamId,
-      username : user.username,
-      avatar   : user.avatar,
+      _id       : String(user._id),
+      steamId   : user.steamId,
+      username  : user.username,
+      avatar    : user.avatar,
       profileUrl: user.profileUrl,
-      bio      : user.bio || '',
+      bio       : user.bio || '',
     })).toString('base64')
 
     console.log('✅ Redirecting to frontend')
@@ -135,14 +139,12 @@ router.get('/steam/callback', async (req, res) => {
   }
 })
 
-// Get current user (session fallback for localhost)
 router.get('/me', (req, res) => {
   const u = req.session?.user
   if (!u) return res.status(401).json({ authenticated: false, user: null })
   res.json({ authenticated: true, user: u })
 })
 
-// Logout
 router.post('/logout', (req, res) => {
   req.session.destroy(() => res.clearCookie('connect.sid'))
   res.json({ message: 'Logged out' })
@@ -153,3 +155,22 @@ router.get('/logout', (req, res) => {
 })
 
 module.exports = router
+
+// ONE-TIME cleanup — drops all logs with missing steamId (corrupted from old sessions)
+// Hit GET /api/auth/cleanup once after deploying, then ignore
+router.get('/cleanup', async (req, res) => {
+  try {
+    const GameLog = require('../models/GameLog')
+    const result  = await GameLog.deleteMany({
+      $or: [
+        { steamId: { $exists: false } },
+        { steamId: null },
+        { steamId: '' },
+        { steamId: 'undefined' },
+      ]
+    })
+    res.json({ message: 'Cleanup done', deleted: result.deletedCount })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
