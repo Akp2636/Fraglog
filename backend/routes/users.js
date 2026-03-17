@@ -11,6 +11,18 @@ const { requireAuth } = require('../middleware/auth')
 const STEAM_KEY = process.env.STEAM_API_KEY
 const toObjId = (id) => { try { return new mongoose.Types.ObjectId(String(id)) } catch { return null } }
 
+// GET /api/users/search?q=  ← MUST be before /:steamId
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query
+    if (!q || q.trim().length < 2) return res.json({ users: [] })
+    const users = await User.find({
+      username: { $regex: q.trim(), $options: 'i' }
+    }).select('steamId username avatar bio').limit(10)
+    res.json({ users })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // GET /api/users/:steamId
 router.get('/:steamId', async (req, res) => {
   try {
@@ -113,18 +125,6 @@ router.patch('/me/favorites', requireAuth, async (req, res) => {
       { new: true }
     )
     res.json({ user })
-  } catch (err) { res.status(500).json({ error: err.message }) }
-})
-
-// GET /api/users/search?q= — search users
-router.get('/search', async (req, res) => {
-  try {
-    const { q } = req.query
-    if (!q || q.trim().length < 2) return res.json({ users: [] })
-    const users = await User.find({
-      username: { $regex: q.trim(), $options: 'i' }
-    }).select('steamId username avatar bio').limit(10)
-    res.json({ users })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
