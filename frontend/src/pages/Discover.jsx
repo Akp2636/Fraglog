@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
-import { FiSearch, FiTrendingUp, FiArrowRight, FiUsers, FiGamepad } from 'react-icons/fi'
+import { FiSearch, FiTrendingUp, FiArrowRight, FiUsers, FiGrid } from 'react-icons/fi'
 import { SkeletonCard } from '../components/LoadingSpinner'
 import FollowButton from '../components/FollowButton'
 import api from '../utils/api'
@@ -76,7 +76,7 @@ export default function Discover() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid #1A1A1A', marginBottom: 28 }}>
-        {[['games', FiGamepad, 'Games'], ['people', FiUsers, 'People']].map(([key, Icon, label]) => (
+        {[['games', FiGrid, 'Games'], ['people', FiUsers, 'People']].map(([key, Icon, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
             padding: '11px 18px', marginBottom: -1,
