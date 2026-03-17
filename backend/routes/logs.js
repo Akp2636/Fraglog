@@ -2,13 +2,11 @@ const express  = require('express')
 const mongoose = require('mongoose')
 const router   = express.Router()
 const GameLog  = require('../models/GameLog')
+const Activity = require('../models/Activity')
 const { requireAuth } = require('../middleware/auth')
 
-const toObjId = (id) => {
-  try { return new mongoose.Types.ObjectId(String(id)) } catch { return null }
-}
+const toObjId = (id) => { try { return new mongoose.Types.ObjectId(String(id)) } catch { return null } }
 
-// POST /api/logs — find-then-update, never upsert
 router.post('/', requireAuth, async (req, res) => {
   try {
     const steamId  = req.user.steamId
@@ -17,44 +15,42 @@ router.post('/', requireAuth, async (req, res) => {
     const { gameName, headerImage, status, rating, hoursLogged, notes, startDate, finishDate } = req.body
 
     if (!steamId) return res.status(400).json({ error: 'No steamId in token — log out and back in' })
-
     console.log(`📝 Log: ${req.user.username} steamId=${steamId} appId=${appIdStr} status=${status}`)
 
-    // Delete every doc for this appId that is NOT owned by current user
+    // Delete orphan docs
     const nuked = await GameLog.deleteMany({ appId: appIdStr, steamId: { $ne: steamId } })
-    if (nuked.deletedCount > 0)
-      console.log(`🧹 Deleted ${nuked.deletedCount} orphan docs for appId=${appIdStr}`)
+    if (nuked.deletedCount > 0) console.log(`🧹 Deleted ${nuked.deletedCount} orphan docs`)
 
-    // Find existing log owned by this user
     let log = await GameLog.findOne({ steamId, appId: appIdStr })
+    const isNew = !log
 
     if (log) {
-      // Update in place
-      if (status)      log.status      = status
-      if (rating != null) log.rating   = rating
-      if (hoursLogged) log.hoursLogged = hoursLogged
-      if (notes != null)  log.notes    = notes
-      if (startDate)   log.startDate   = startDate
-      if (finishDate)  log.finishDate  = finishDate
+      if (status)         log.status      = status
+      if (rating != null) log.rating      = rating
+      if (hoursLogged)    log.hoursLogged = hoursLogged
+      if (notes != null)  log.notes       = notes
+      if (startDate)      log.startDate   = startDate
+      if (finishDate)     log.finishDate  = finishDate
       await log.save()
-      console.log(`✅ Updated log ${log._id}`)
     } else {
-      // Create fresh
       log = await GameLog.create({
-        steamId, userId,
-        appId      : appIdStr,
-        gameName   : gameName    || 'Unknown',
+        steamId, userId, appId: appIdStr,
+        gameName: gameName || 'Unknown',
         headerImage: headerImage || '',
-        status     : status      || 'want_to_play',
-        rating     : rating      || null,
-        hoursLogged: hoursLogged || 0,
-        notes      : notes       || '',
-        startDate  : startDate   || null,
-        finishDate : finishDate  || null,
+        status: status || 'want_to_play',
+        rating: rating || null, hoursLogged: hoursLogged || 0,
+        notes: notes || '', startDate: startDate || null, finishDate: finishDate || null,
       })
-      console.log(`✅ Created log ${log._id} steamId=${log.steamId}`)
     }
 
+    // Record activity
+    await Activity.create({
+      steamId, username: req.user.username, avatar: req.user.avatar,
+      type: isNew ? 'LOG_GAME' : 'UPDATE_LOG',
+      data: { appId: appIdStr, gameName: gameName || log.gameName, status: status || log.status, rating },
+    }).catch(() => {}) // non-fatal
+
+    console.log(`✅ Log saved: steamId=${log.steamId} appId=${log.appId}`)
     res.json({ log })
   } catch (err) {
     console.error('❌ Log error:', err.message)
@@ -62,7 +58,6 @@ router.post('/', requireAuth, async (req, res) => {
   }
 })
 
-// GET /api/logs/my
 router.get('/my', requireAuth, async (req, res) => {
   try {
     const logs = await GameLog.find({ steamId: req.user.steamId }).sort({ updatedAt: -1 })
@@ -70,18 +65,14 @@ router.get('/my', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// GET /api/logs/check/:appId
 router.get('/check/:appId', requireAuth, async (req, res) => {
   try {
-    const steamId  = req.user.steamId
-    const appIdStr = String(req.params.appId)
-    const log      = await GameLog.findOne({ steamId, appId: appIdStr })
-    console.log(`🔍 Check appId=${appIdStr} steamId=${steamId} → ${log ? log.status : 'null'}`)
+    const log = await GameLog.findOne({ steamId: req.user.steamId, appId: String(req.params.appId) })
+    console.log(`🔍 Check appId=${req.params.appId} steamId=${req.user.steamId} → ${log ? log.status : 'null'}`)
     res.json({ log: log || null })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// DELETE /api/logs/:appId
 router.delete('/:appId', requireAuth, async (req, res) => {
   try {
     await GameLog.deleteMany({ steamId: req.user.steamId, appId: String(req.params.appId) })
@@ -89,7 +80,6 @@ router.delete('/:appId', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// DEBUG (keep for now)
 router.get('/debug/:appId', async (req, res) => {
   try {
     const docs = await GameLog.find({ appId: String(req.params.appId) }).lean()

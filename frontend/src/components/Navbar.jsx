@@ -8,6 +8,8 @@ import toast from 'react-hot-toast'
 const NAV = [
   ['/', 'Home'],
   ['/discover', 'Games'],
+  ['/lists', 'Lists'],
+  ['/activity', 'Activity'],
 ]
 
 export default function Navbar() {

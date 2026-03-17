@@ -3,28 +3,23 @@ const mongoose  = require('mongoose')
 const router    = express.Router()
 const Review    = require('../models/Review')
 const User      = require('../models/User')
+const Activity  = require('../models/Activity')
 const { requireAuth } = require('../middleware/auth')
 
-const toObjId = (id) => {
-  try { return new mongoose.Types.ObjectId(id) }
-  catch { return id }
-}
+const toObjId = (id) => { try { return new mongoose.Types.ObjectId(String(id)) } catch { return null } }
 
-// GET /api/reviews/feed
 router.get('/feed', async (req, res) => {
   try {
     const { limit = 20, offset = 0 } = req.query
-    const reviews = await Review.find().sort({ createdAt: -1 }).skip(+offset).limit(+limit)
+    const reviews  = await Review.find().sort({ createdAt: -1 }).skip(+offset).limit(+limit)
     const steamIds = [...new Set(reviews.map(r => r.steamId))]
     const users    = await User.find({ steamId: { $in: steamIds } }).select('steamId username avatar')
     const userMap  = {}
     users.forEach(u => { userMap[u.steamId] = u })
-    const enriched = reviews.map(r => ({ ...r.toObject(), author: userMap[r.steamId] || null }))
-    res.json({ reviews: enriched })
+    res.json({ reviews: reviews.map(r => ({ ...r.toObject(), author: userMap[r.steamId] || null })) })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /api/reviews
 router.post('/', requireAuth, async (req, res) => {
   try {
     const userId  = toObjId(req.user._id)
@@ -32,18 +27,18 @@ router.post('/', requireAuth, async (req, res) => {
     const { appId, gameName, gameHeaderImage, title, body, rating, containsSpoilers, playedOn, hoursAtReview } = req.body
     const existing = await Review.findOne({ userId, appId })
     if (existing) return res.status(400).json({ error: 'You already reviewed this game. Edit it instead.' })
-    const review = await Review.create({
-      userId, steamId, appId, gameName, gameHeaderImage,
-      title, body, rating, containsSpoilers, playedOn, hoursAtReview,
-    })
+    const review = await Review.create({ userId, steamId, appId, gameName, gameHeaderImage, title, body, rating, containsSpoilers, playedOn, hoursAtReview })
+
+    await Activity.create({
+      steamId, username: req.user.username, avatar: req.user.avatar,
+      type: 'REVIEW',
+      data: { appId, gameName, rating, title, reviewId: review._id },
+    }).catch(() => {})
+
     res.status(201).json({ review })
-  } catch (err) {
-    console.error('Review create error:', err.message)
-    res.status(500).json({ error: err.message })
-  }
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// PUT /api/reviews/:id
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const review = await Review.findById(req.params.id)
@@ -56,7 +51,6 @@ router.put('/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// DELETE /api/reviews/:id
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const review = await Review.findById(req.params.id)
@@ -67,7 +61,6 @@ router.delete('/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /api/reviews/:id/like
 router.post('/:id/like', requireAuth, async (req, res) => {
   try {
     const review = await Review.findById(req.params.id)
