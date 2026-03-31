@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: fraglog-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
