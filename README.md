@@ -1,138 +1,70 @@
-Fraglog 🎮
+🎮 Fraglog
+Letterboxd for Steam Gamers
+Fraglog allows Steam users to track their library, rate their favorite titles, and share reviews with a community of gamers. Built with a focus on a seamless, stateless OpenID authentication flow and a robust CI/CD pipeline.
 
-Letterboxd for Steam gamers — track, rate and review your games.
+🏗️ System Architecture
+Frontend: React (Vite) hosted on Vercel for lightning-fast edge delivery.
 
-🚀 Live Architecture
+Backend: Node.js/Express API containerized with Docker and deployed on AWS EC2.
 
-Frontend: React 18 + Vite + Tailwind CSS → Vercel
-Backend: Node.js + Express (Dockerized) → AWS EC2
-Database: MongoDB Atlas
-Container Registry: AWS ECR
-CI/CD: GitHub Actions → Auto build & push Docker images to ECR
-Auth: Steam OpenID 2.0 (stateless, custom implementation)
+Database: MongoDB Atlas for scalable, document-based storage of user reviews and profiles.
 
-🧠 System Flow
+Pipeline: GitHub Actions automates the build/push process to AWS ECR on every commit to main.
 
-User → Vercel Frontend
-↓
-EC2 Backend (Docker container)
-↓
-MongoDB Atlas
-↓
-GitHub Actions → AWS ECR → EC2
+🛠️ Tech Stack
+Frontend: React 18, Vite, Tailwind CSS, Axios.
 
-📦 Docker Setup (Backend)
+Backend: Node.js, Express, MongoDB (Mongoose).
 
-Build Image (local):
+Authentication: Manual Steam OpenID 2.0 (Stateless implementation).
 
+Infrastructure: Docker, AWS EC2, AWS ECR, GitHub Actions (CI/CD).
+
+🚀 Quick Start
+1. Clone & Install
+Bash
+git clone https://github.com/yourusername/fraglog
+cd fraglog
+npm run install:all
+2. Environment Configuration
+Create a .env file in the backend/ directory:
+
+Code snippet
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/fraglog
+SESSION_SECRET=your_random_string
+STEAM_API_KEY=your_steam_key
+BACKEND_URL=http://<your-ec2-ip>:5000
+FRONTEND_URL=https://fraglog.vercel.app
+3. Local Development
+Bash
+# Runs frontend on :5173 and backend on :5000
+npm run dev
+🐳 DevOps & Deployment
+Dockerization
+The backend is fully containerized for environment parity.
+
+Bash
 cd backend
 docker build -t fraglog-backend .
+docker run -p 5000:5000 --env-file .env fraglog-backend
+CI/CD Workflow
+On every push to the main branch, the following automated steps occur:
 
-Run Container (local):
+Lint & Test: Validates code integrity.
 
-docker run -p 5000:5000
--e MONGO_URI="your_mongo_uri"
--e SESSION_SECRET="your_secret"
--e JWT_SECRET="your_jwt"
--e FRONTEND_URL="http://localhost:5173
-"
-fraglog-backend
+Build: Creates a production Docker image.
 
-⚙️ CI/CD Pipeline
+Push: Uploads the image to AWS Elastic Container Registry (ECR).
 
-On every push to main:
+Deploy: Updates the running container instance on AWS EC2.
 
-GitHub Actions builds Docker image
-Pushes image to AWS ECR
-Image becomes available for EC2 deployment
+🔐 Steam Auth Flow (Stateless)
+Fraglog implements a custom OpenID 2.0 flow to avoid the overhead of heavy libraries:
 
-☁️ AWS Deployment
+Redirect: User is sent to Steam’s secure login portal.
 
-Services Used:
+Verify: On callback, the backend validates the assertion directly with Steam's servers.
 
-EC2 → Hosts backend container
-ECR → Stores Docker images
-IAM → Secure access for CI/CD
+Tokenization: User data is encoded into a base64/JWT token.
 
-Run on EC2:
-
-docker run -d -p 5000:5000
--e MONGO_URI="your_mongo_uri"
--e SESSION_SECRET="your_secret"
--e JWT_SECRET="your_jwt"
--e FRONTEND_URL="https://fraglog.vercel.app
-"
-<your-ecr-image-uri>
-
-🔐 Environment Variables (Backend)
-
-Create backend/.env:
-
-MONGO_URI=your_mongodb_uri
-SESSION_SECRET=your_secret
-JWT_SECRET=your_jwt
-STEAM_API_KEY=your_steam_api_key
-FRONTEND_URL=https://fraglog.vercel.app
-
-NODE_ENV=production
-
-🌐 Frontend Setup (Vercel)
-
-Root directory: frontend
-Framework: Vite
-
-Env variable:
-
-VITE_API_URL=http://<your-ec2-ip>:5000
-
-🔑 Steam API Setup
-
-Get key: https://steamcommunity.com/dev/apikey
-
-Domain: your backend URL
-
-💻 Local Development
-
-npm run install:all
-npm run dev
-
-Backend → http://localhost:5000
-
-Frontend → http://localhost:5173
-
-🔄 Auth Flow
-
-User clicks Sign In → /api/auth/steam
-Redirect to Steam OpenID
-Steam → callback /api/auth/steam/callback
-Backend verifies user & stores in MongoDB
-Backend sends token → frontend
-Frontend stores token → user stays logged in
-
-🧠 Key Features
-
-Steam library sync via Steam Web API
-Stateless authentication (OpenID + JWT)
-Social graph (follow system, activity feed)
-Game reviews and logging
-Fully containerized backend
-CI/CD automated deployment pipeline
-
-🏆 Highlights
-
-Built full-stack production app
-Dockerized backend for portability
-Implemented CI/CD using GitHub Actions
-Deployed backend on AWS EC2 using Docker
-Integrated MongoDB Atlas for cloud database
-
-📌 Future Improvements
-
-Domain + HTTPS (Nginx / Route53)
-Auto-deploy to EC2 (zero manual steps)
-Rate limiting & caching optimization
-Microservices split (optional scaling)
-
-📜 License
-
-MIT
+Handshake: Token is passed to the frontend via URL params and stored in localStorage for persistent sessions.
