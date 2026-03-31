@@ -5,15 +5,30 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker image
         run: docker build -t fraglog-backend ./backend
+
+      - name: Tag Docker image
+        run: |
+          docker tag fraglog-backend:latest 140807855783.dkr.ecr.eu-north-1.amazonaws.com/fraglog-backend:latest
+
+      - name: Push to ECR
+        run: |
+          docker push 140807855783.dkr.ecr.eu-north-1.amazonaws.com/fraglog-backend:latest
