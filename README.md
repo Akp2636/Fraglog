@@ -1,70 +1,96 @@
-🎮 Fraglog
-Letterboxd for Steam Gamers
-Fraglog allows Steam users to track their library, rate their favorite titles, and share reviews with a community of gamers. Built with a focus on a seamless, stateless OpenID authentication flow and a robust CI/CD pipeline.
+# Fraglog 🎮
 
-🏗️ System Architecture
-Frontend: React (Vite) hosted on Vercel for lightning-fast edge delivery.
+> Letterboxd for Steam gamers — track, rate and review your games.
 
-Backend: Node.js/Express API containerized with Docker and deployed on AWS EC2.
+## Stack
+- **Frontend**: React 18 + Vite + Tailwind CSS → Vercel
+- **Backend**: Node.js + Express + MongoDB → Render
+- **Auth**: Manual Steam OpenID 2.0 (stateless, no passport-steam)
 
-Database: MongoDB Atlas for scalable, document-based storage of user reviews and profiles.
+## Setup
 
-Pipeline: GitHub Actions automates the build/push process to AWS ECR on every commit to main.
-
-🛠️ Tech Stack
-Frontend: React 18, Vite, Tailwind CSS, Axios.
-
-Backend: Node.js, Express, MongoDB (Mongoose).
-
-Authentication: Manual Steam OpenID 2.0 (Stateless implementation).
-
-Infrastructure: Docker, AWS EC2, AWS ECR, GitHub Actions (CI/CD).
-
-🚀 Quick Start
-1. Clone & Install
-Bash
+### 1. Clone
+```bash
 git clone https://github.com/yourusername/fraglog
 cd fraglog
 npm run install:all
-2. Environment Configuration
-Create a .env file in the backend/ directory:
+```
 
-Code snippet
-MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/fraglog
-SESSION_SECRET=your_random_string
-STEAM_API_KEY=your_steam_key
-BACKEND_URL=http://<your-ec2-ip>:5000
+### 2. Backend .env
+Create `backend/.env`:
+```env
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/fraglog
+SESSION_SECRET=any_long_random_string
+STEAM_API_KEY=get_from_steamcommunity.com/dev/apikey
+BACKEND_URL=https://fraglog.onrender.com
 FRONTEND_URL=https://fraglog.vercel.app
-3. Local Development
-Bash
-# Runs frontend on :5173 and backend on :5000
-npm run dev
-🐳 DevOps & Deployment
-Dockerization
-The backend is fully containerized for environment parity.
+NODE_ENV=production
+```
 
-Bash
+### 3. Render (Backend)
+- New Web Service → connect GitHub repo
+- Root directory: `backend`
+- Build: `npm install`
+- Start: `node server.js`
+- Add all env vars from step 2 in Render dashboard
+
+### 4. Vercel (Frontend)
+- New Project → connect GitHub repo
+- Root directory: `frontend`
+- Framework: Vite
+- Add env var: `VITE_API_URL=https://fraglog.onrender.com`
+
+### 5. Steam API Key
+- Get key at: https://steamcommunity.com/dev/apikey
+- Domain: your Render URL (e.g. `fraglog.onrender.com`)
+
+### Local dev
+```bash
+# Uses localhost:5000 for backend, localhost:5173 for frontend
+# Create backend/.env with localhost URLs for local dev
+npm run dev
+```
+## 🐳 DevOps & Deployment
+- Dockerized Backend
 cd backend
 docker build -t fraglog-backend .
 docker run -p 5000:5000 --env-file .env fraglog-backend
-CI/CD Workflow
-On every push to the main branch, the following automated steps occur:
 
-Lint & Test: Validates code integrity.
+## CI/CD Workflow (GitHub Actions)
 
-Build: Creates a production Docker image.
+- Builds production Docker image.
+- Pushes image to AWS ECR.
+- Deploys to EC2 instance automatically.
 
-Push: Uploads the image to AWS Elastic Container Registry (ECR).
+## ☁️ AWS Services Used
+ - EC2 → runs backend container
+ - ECR → stores Docker images
+ - IAM → secure access for CI/CD
 
-Deploy: Updates the running container instance on AWS EC2.
+ ### EC2 run command
 
-🔐 Steam Auth Flow (Stateless)
-Fraglog implements a custom OpenID 2.0 flow to avoid the overhead of heavy libraries:
+```docker run -d -p 5000:5000 \
+-e MONGO_URI="your_mongo_uri" \
+-e SESSION_SECRET="your_secret" \
+-e JWT_SECRET="your_jwt" \
+-e FRONTEND_URL="https://fraglog.vercel.app" \
+<your-ecr-image-uri>
+```
+### 🧠 Highlights
 
-Redirect: User is sent to Steam’s secure login portal.
+- User clicks Sign In → /api/auth/steam
+- Backend builds Steam OpenID URL and redirects to Steam
+- Steam authenticates user and redirects to /api/auth/steam/callback
+- Backend verifies OpenID assertion, fetches Steam profile, saves to MongoDB
+- Backend encodes user and redirects to frontend with token
+- Frontend stores token → user stays logged in
 
-Verify: On callback, the backend validates the assertion directly with Steam's servers.
 
-Tokenization: User data is encoded into a base64/JWT token.
-
-Handshake: Token is passed to the frontend via URL params and stored in localStorage for persistent sessions.
+## Auth Flow
+1. User clicks Sign In → redirect to `backend/api/auth/steam`
+2. Backend builds Steam OpenID URL and redirects to Steam
+3. Steam authenticates user and redirects to `backend/api/auth/steam/callback`
+4. Backend verifies OpenID assertion (stateless), fetches Steam profile, saves to MongoDB
+5. Backend encodes user as base64 token and redirects to `frontend/auth/callback?token=...`
+6. Frontend AuthCallback decodes token, saves to localStorage, redirects to profile
+7. On every page load, AuthContext reads localStorage → user stays logged in
