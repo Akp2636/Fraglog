@@ -27,20 +27,7 @@ FRONTEND_URL=https://fraglog.vercel.app
 NODE_ENV=production
 ```
 
-### 3. Render (Backend)
-- New Web Service → connect GitHub repo
-- Root directory: `backend`
-- Build: `npm install`
-- Start: `node server.js`
-- Add all env vars from step 2 in Render dashboard
-
-### 4. Vercel (Frontend)
-- New Project → connect GitHub repo
-- Root directory: `frontend`
-- Framework: Vite
-- Add env var: `VITE_API_URL=https://fraglog.onrender.com`
-
-### 5. Steam API Key
+### 3. Steam API Key
 - Get key at: https://steamcommunity.com/dev/apikey
 - Domain: your Render URL (e.g. `fraglog.onrender.com`)
 
