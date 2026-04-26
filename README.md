@@ -3,8 +3,8 @@
 > Letterboxd for Steam gamers — track, rate and review your games.
 
 ## Stack
-- **Frontend**: React 18 + Vite + Tailwind CSS → Vercel
-- **Backend**: Node.js + Express + MongoDB → Render
+- **Frontend**: React 18 + Vite + Tailwind CSS 
+- **Backend**: Node.js + Express + MongoDB 
 - **Auth**: Manual Steam OpenID 2.0 (stateless, no passport-steam)
 
 ## Setup
